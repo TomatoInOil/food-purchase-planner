@@ -15,16 +15,19 @@
                     <h1>🍳 Менеджер рецептов</h1>
                     <p class="subtitle">Планируйте меню, создавайте рецепты и считайте калории</p>
                 </div>
-                <a href="{% url 'logout' %}" class="btn btn-secondary">Выйти</a>
+                <form method="post" action="{% url 'logout' %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary">Выйти</button>
+                </form>
             </div>
         </header>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('recipes')">📖 Рецепты</button>
-            <button class="tab-btn" onclick="switchTab('create-recipe')">➕ Создать рецепт</button>
-            <button class="tab-btn" onclick="switchTab('menu')">📅 Меню на неделю</button>
-            <button class="tab-btn" onclick="switchTab('shopping')">🛒 Список покупок</button>
-            <button class="tab-btn" onclick="switchTab('ingredients')">🥗 Ингредиенты</button>
+            <button class="tab-btn active" data-tab="recipes" onclick="switchTab('recipes', this)">📖 Рецепты</button>
+            <button class="tab-btn" data-tab="create-recipe" onclick="switchTab('create-recipe', this)">➕ Создать рецепт</button>
+            <button class="tab-btn" data-tab="menu" onclick="switchTab('menu', this)">📅 Меню на неделю</button>
+            <button class="tab-btn" data-tab="shopping" onclick="switchTab('shopping', this)">🛒 Список покупок</button>
+            <button class="tab-btn" data-tab="ingredients" onclick="switchTab('ingredients', this)">🥗 Ингредиенты</button>
         </div>
 
         <!-- Рецепты -->
@@ -205,46 +208,85 @@
     </div>
 
     <script>
-        // Data storage
-        let recipes = JSON.parse(localStorage.getItem('recipes')) || [];
-        let ingredients = JSON.parse(localStorage.getItem('ingredients')) || getDefaultIngredients();
-        let weekMenu = JSON.parse(localStorage.getItem('weekMenu')) || {};
+        let recipes = [];
+        let ingredients = [];
+        let weekMenu = {};
+        let editingRecipeId = null;
 
-        // Default ingredients
-        function getDefaultIngredients() {
-            return [
-                { id: 1, name: 'Куриная грудка', calories: 165, protein: 31, fat: 3.6, carbs: 0 },
-                { id: 2, name: 'Рис', calories: 130, protein: 2.7, fat: 0.3, carbs: 28 },
-                { id: 3, name: 'Брокколи', calories: 34, protein: 2.8, fat: 0.4, carbs: 7 },
-                { id: 4, name: 'Яйцо', calories: 155, protein: 13, fat: 11, carbs: 1.1 },
-                { id: 5, name: 'Овсянка', calories: 389, protein: 16.9, fat: 6.9, carbs: 66.3 },
-                { id: 6, name: 'Банан', calories: 89, protein: 1.1, fat: 0.3, carbs: 23 },
-                { id: 7, name: 'Греческий йогурт', calories: 59, protein: 10, fat: 0.4, carbs: 3.6 },
-                { id: 8, name: 'Лосось', calories: 208, protein: 20, fat: 13, carbs: 0 },
-            ];
+        function getCsrfToken() {
+            return document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
         }
 
-        // Initialize
-        function init() {
-            renderRecipes();
-            renderIngredients();
-            generateWeekPlanner();
-            addIngredientRow();
+        async function apiFetch(url, options = {}) {
+            const init = {
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                    ...options.headers
+                },
+                ...options
+            };
+            if (options.body && typeof options.body !== 'string') {
+                init.body = JSON.stringify(options.body);
+            }
+            const response = await fetch(url, init);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const msg = data.error || data.errors || JSON.stringify(data) || 'Ошибка запроса';
+                throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+            }
+            return data;
         }
 
-        // Tab switching
-        function switchTab(tabName) {
-            const tabs = document.querySelectorAll('.tab-content');
-            const buttons = document.querySelectorAll('.tab-btn');
-            
-            tabs.forEach(tab => tab.classList.remove('active'));
-            buttons.forEach(btn => btn.classList.remove('active'));
-            
+        function showError(msg) {
+            alert(msg);
+        }
+
+        async function init() {
+            try {
+                const [recipesData, ingredientsData, menuData] = await Promise.all([
+                    apiFetch('/api/recipes/'),
+                    apiFetch('/api/ingredients/'),
+                    apiFetch('/api/menu/')
+                ]);
+                recipes = recipesData;
+                ingredients = ingredientsData;
+                weekMenu = menuData;
+                renderRecipes();
+                renderIngredients();
+                generateWeekPlanner();
+                addIngredientRow();
+                setDefaultShoppingDates();
+            } catch (e) {
+                showError(e.message || 'Ошибка загрузки данных');
+            }
+        }
+
+        function setDefaultShoppingDates() {
+            const start = document.getElementById('shoppingStartDate');
+            const end = document.getElementById('shoppingEndDate');
+            if (!start.value) {
+                const today = new Date();
+                const monday = new Date(today);
+                monday.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                start.value = monday.toISOString().slice(0, 10);
+                end.value = sunday.toISOString().slice(0, 10);
+            }
+        }
+
+        function switchTab(tabName, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+            if (btn) btn.classList.add('active');
+            if (tabName === 'menu') {
+                generateWeekPlanner();
+            }
         }
 
-        // Add ingredient row
         function addIngredientRow() {
             const container = document.getElementById('ingredientsContainer');
             const row = document.createElement('div');
@@ -272,7 +314,6 @@
             calculateNutrition();
         }
 
-        // Calculate nutrition
         function calculateNutrition() {
             const rows = document.querySelectorAll('.ingredient-row');
             let totalCalories = 0, totalProtein = 0, totalFat = 0, totalCarbs = 0;
@@ -309,8 +350,7 @@
             document.getElementById('totalCarbs').textContent = totalCarbs.toFixed(1);
         }
 
-        // Save recipe
-        function saveRecipe(event) {
+        async function saveRecipe(event) {
             event.preventDefault();
             const form = event.target;
             const rows = document.querySelectorAll('.ingredient-row');
@@ -320,46 +360,69 @@
                 const ingredientId = row.querySelector('.ingredient-select').value;
                 const weight = parseFloat(row.querySelector('.ingredient-weight').value);
                 if (ingredientId && weight) {
-                    recipeIngredients.push({ ingredientId: parseInt(ingredientId), weight });
+                    recipeIngredients.push({ ingredient_id: parseInt(ingredientId), weight_grams: Math.round(weight) });
                 }
             });
 
             if (recipeIngredients.length === 0) {
-                alert('Добавьте хотя бы один ингредиент!');
+                showError('Добавьте хотя бы один ингредиент!');
                 return;
             }
 
-            const recipe = {
-                id: Date.now(),
-                name: form.recipeName.value,
+            const body = {
+                name: form.recipeName.value.trim(),
                 description: form.recipeDescription.value,
                 instructions: form.recipeInstructions.value,
-                ingredients: recipeIngredients,
-                nutrition: {
-                    calories: parseFloat(document.getElementById('totalCalories').textContent),
-                    protein: parseFloat(document.getElementById('totalProtein').textContent),
-                    fat: parseFloat(document.getElementById('totalFat').textContent),
-                    carbs: parseFloat(document.getElementById('totalCarbs').textContent)
-                }
+                ingredients: recipeIngredients
             };
 
-            recipes.push(recipe);
-            localStorage.setItem('recipes', JSON.stringify(recipes));
-            
-            alert('Рецепт успешно сохранён!');
-            clearRecipeForm();
-            renderRecipes();
-            switchTab('recipes');
+            try {
+                if (editingRecipeId) {
+                    await apiFetch(`/api/recipes/${editingRecipeId}/`, { method: 'PUT', body });
+                } else {
+                    await apiFetch('/api/recipes/', { method: 'POST', body });
+                }
+                showError('Рецепт успешно сохранён!');
+                clearRecipeForm();
+                editingRecipeId = null;
+                recipes = await apiFetch('/api/recipes/');
+                renderRecipes();
+                switchTab('recipes', document.querySelector('.tab-btn[data-tab="recipes"]'));
+            } catch (e) {
+                showError(e.message || 'Ошибка сохранения рецепта');
+            }
         }
 
         function clearRecipeForm() {
+            editingRecipeId = null;
             document.getElementById('recipeForm').reset();
+            document.querySelector('#create-recipe .card-title').textContent = 'Создать новый рецепт';
             document.getElementById('ingredientsContainer').innerHTML = '';
             addIngredientRow();
             calculateNutrition();
         }
 
-        // Render recipes
+        function loadRecipeForEdit(recipeId) {
+            const recipe = recipes.find(r => r.id === recipeId);
+            if (!recipe || !recipe.is_owner) return;
+            editingRecipeId = recipe.id;
+            const form = document.getElementById('recipeForm');
+            form.recipeName.value = recipe.name;
+            form.recipeDescription.value = recipe.description;
+            form.recipeInstructions.value = recipe.instructions;
+            document.querySelector('#create-recipe .card-title').textContent = 'Редактировать рецепт';
+            document.getElementById('ingredientsContainer').innerHTML = '';
+            recipe.ingredients.forEach(ri => {
+                addIngredientRow();
+                const rows = document.querySelectorAll('.ingredient-row');
+                const last = rows[rows.length - 1];
+                last.querySelector('.ingredient-select').value = ri.ingredient_id;
+                last.querySelector('.ingredient-weight').value = ri.weight_grams;
+                calculateNutrition();
+            });
+            switchTab('create-recipe', document.querySelector('.tab-btn[data-tab="create-recipe"]'));
+        }
+
         function renderRecipes() {
             const container = document.getElementById('recipeList');
             if (recipes.length === 0) {
@@ -371,19 +434,24 @@
                 return;
             }
 
-            container.innerHTML = recipes.map(recipe => `
+            container.innerHTML = recipes.map(recipe => {
+                const cals = (recipe.total_calories || 0).toFixed(0);
+                const prot = (recipe.total_protein || 0).toFixed(0);
+                const actions = recipe.is_owner
+                    ? `<button class="btn btn-secondary btn-small" onclick="event.stopPropagation(); loadRecipeForEdit(${recipe.id})">Редактировать</button>
+                       <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>`
+                    : '';
+                return `
                 <div class="recipe-card" onclick="showRecipeDetails(${recipe.id})">
                     <h3>${recipe.name}</h3>
                     <p class="recipe-card__description">${recipe.description || 'Без описания'}</p>
                     <div class="recipe-meta">
-                        <span>🔥 ${recipe.nutrition.calories.toFixed(0)} ккал</span>
-                        <span>🥩 ${recipe.nutrition.protein.toFixed(0)}г</span>
+                        <span>🔥 ${cals} ккал</span>
+                        <span>🥩 ${prot}г</span>
                     </div>
-                    <div class="recipe-card__actions">
-                        <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>
-                    </div>
+                    <div class="recipe-card__actions">${actions}</div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function filterRecipes() {
@@ -401,11 +469,14 @@
 
             const modal = document.getElementById('recipeModal');
             document.getElementById('modalRecipeName').textContent = recipe.name;
-            
-            const ingredientsList = recipe.ingredients.map(ri => {
-                const ing = ingredients.find(i => i.id === ri.ingredientId);
-                return `<li>${ing.name} - ${ri.weight}г</li>`;
-            }).join('');
+
+            const ingredientsList = recipe.ingredients.map(ri =>
+                `<li>${ri.ingredient_name} - ${ri.weight_grams}г</li>`
+            ).join('');
+
+            const editBtn = recipe.is_owner
+                ? `<button class="btn btn-primary" onclick="closeRecipeModal(); loadRecipeForEdit(${recipe.id})">Редактировать</button>`
+                : '';
 
             document.getElementById('modalRecipeContent').innerHTML = `
                 <div class="modal-section">
@@ -422,27 +493,28 @@
                 <div class="nutrition-info">
                     <div class="nutrition-card">
                         <h4>Калории</h4>
-                        <div class="value">${recipe.nutrition.calories.toFixed(0)}</div>
+                        <div class="value">${(recipe.total_calories || 0).toFixed(0)}</div>
                         <small>ккал</small>
                     </div>
                     <div class="nutrition-card">
                         <h4>Белки</h4>
-                        <div class="value">${recipe.nutrition.protein.toFixed(1)}</div>
+                        <div class="value">${(recipe.total_protein || 0).toFixed(1)}</div>
                         <small>г</small>
                     </div>
                     <div class="nutrition-card">
                         <h4>Жиры</h4>
-                        <div class="value">${recipe.nutrition.fat.toFixed(1)}</div>
+                        <div class="value">${(recipe.total_fat || 0).toFixed(1)}</div>
                         <small>г</small>
                     </div>
                     <div class="nutrition-card">
                         <h4>Углеводы</h4>
-                        <div class="value">${recipe.nutrition.carbs.toFixed(1)}</div>
+                        <div class="value">${(recipe.total_carbs || 0).toFixed(1)}</div>
                         <small>г</small>
                     </div>
                 </div>
+                <div class="modal-actions">${editBtn}</div>
             `;
-            
+
             modal.classList.add('active');
         }
 
@@ -450,51 +522,55 @@
             document.getElementById('recipeModal').classList.remove('active');
         }
 
-        function deleteRecipe(recipeId) {
-            if (confirm('Вы уверены, что хотите удалить этот рецепт?')) {
+        async function deleteRecipe(recipeId) {
+            if (!confirm('Вы уверены, что хотите удалить этот рецепт?')) return;
+            try {
+                await apiFetch(`/api/recipes/${recipeId}/`, { method: 'DELETE' });
                 recipes = recipes.filter(r => r.id !== recipeId);
-                localStorage.setItem('recipes', JSON.stringify(recipes));
                 renderRecipes();
+                closeRecipeModal();
+            } catch (e) {
+                showError(e.message || 'Ошибка удаления рецепта');
             }
         }
 
-        // Save ingredient
-        function saveIngredient(event) {
+        async function saveIngredient(event) {
             event.preventDefault();
             const form = event.target;
-
-            const ingredient = {
-                id: Date.now(),
-                name: form.ingredientName.value,
+            const body = {
+                name: form.ingredientName.value.trim(),
                 calories: parseFloat(form.calories.value),
                 protein: parseFloat(form.protein.value),
                 fat: parseFloat(form.fat.value),
                 carbs: parseFloat(form.carbs.value)
             };
-
-            ingredients.push(ingredient);
-            localStorage.setItem('ingredients', JSON.stringify(ingredients));
-            
-            form.reset();
-            renderIngredients();
-            alert('Ингредиент успешно добавлен!');
+            try {
+                await apiFetch('/api/ingredients/', { method: 'POST', body });
+                ingredients = await apiFetch('/api/ingredients/');
+                form.reset();
+                renderIngredients();
+                showError('Ингредиент успешно добавлен!');
+            } catch (e) {
+                showError(e.message || 'Ошибка добавления ингредиента');
+            }
         }
 
-        // Render ingredients
         function renderIngredients() {
             const tbody = document.getElementById('ingredientTableBody');
-            tbody.innerHTML = ingredients.map(ing => `
+            tbody.innerHTML = ingredients.map(ing => {
+                const deleteBtn = ing.is_owner
+                    ? `<button class="btn btn-danger btn-small" onclick="deleteIngredient(${ing.id})">Удалить</button>`
+                    : '';
+                return `
                 <tr>
                     <td><strong>${ing.name}</strong></td>
                     <td>${ing.calories}</td>
                     <td>${ing.protein}</td>
                     <td>${ing.fat}</td>
                     <td>${ing.carbs}</td>
-                    <td>
-                        <button class="btn btn-danger btn-small" onclick="deleteIngredient(${ing.id})">Удалить</button>
-                    </td>
+                    <td>${deleteBtn}</td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
 
         function filterIngredients() {
@@ -506,15 +582,17 @@
             });
         }
 
-        function deleteIngredient(ingredientId) {
-            if (confirm('Вы уверены, что хотите удалить этот ингредиент?')) {
-                ingredients = ingredients.filter(i => i.id !== ingredientId);
-                localStorage.setItem('ingredients', JSON.stringify(ingredients));
+        async function deleteIngredient(ingredientId) {
+            if (!confirm('Вы уверены, что хотите удалить этот ингредиент?')) return;
+            try {
+                await apiFetch(`/api/ingredients/${ingredientId}/`, { method: 'DELETE' });
+                ingredients = await apiFetch('/api/ingredients/');
                 renderIngredients();
+            } catch (e) {
+                showError(e.message || 'Ошибка удаления ингредиента');
             }
         }
 
-        // Week planner
         function generateWeekPlanner() {
             const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
             const meals = ['Завтрак', 'Обед', 'Перекус', 'Ужин'];
@@ -523,19 +601,20 @@
             container.innerHTML = days.map((day, dayIndex) => `
                 <div class="day-card">
                     <h3>${day}</h3>
-                    ${meals.map((meal, mealIndex) => `
+                    ${meals.map((meal, mealIndex) => {
+                        const key = `${dayIndex}-${mealIndex}`;
+                        const slotVal = weekMenu[key];
+                        return `
                         <div class="meal-slot">
                             <h4>${meal}</h4>
                             <select data-day="${dayIndex}" data-meal="${mealIndex}" onchange="updateWeekMenu()">
                                 <option value="">Не выбрано</option>
                                 ${recipes.map(r => `
-                                    <option value="${r.id}" ${weekMenu[`${dayIndex}-${mealIndex}`] == r.id ? 'selected' : ''}>
-                                        ${r.name}
-                                    </option>
+                                    <option value="${r.id}" ${slotVal == r.id ? 'selected' : ''}>${r.name}</option>
                                 `).join('')}
                             </select>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `).join('');
         }
@@ -547,71 +626,70 @@
                 if (select.value) {
                     const key = `${select.dataset.day}-${select.dataset.meal}`;
                     weekMenu[key] = parseInt(select.value);
+                } else {
+                    weekMenu[`${select.dataset.day}-${select.dataset.meal}`] = null;
                 }
             });
         }
 
-        function saveWeekMenu() {
-            localStorage.setItem('weekMenu', JSON.stringify(weekMenu));
-            alert('Меню на неделю сохранено!');
-        }
-
-        function clearWeekMenu() {
-            if (confirm('Очистить все меню?')) {
-                weekMenu = {};
-                localStorage.setItem('weekMenu', JSON.stringify(weekMenu));
-                generateWeekPlanner();
+        async function saveWeekMenu() {
+            updateWeekMenu();
+            try {
+                await apiFetch('/api/menu/', { method: 'PUT', body: weekMenu });
+                showError('Меню на неделю сохранено!');
+            } catch (e) {
+                showError(e.message || 'Ошибка сохранения меню');
             }
         }
 
-        // Shopping list
-        function generateShoppingList() {
+        async function clearWeekMenu() {
+            if (!confirm('Очистить все меню?')) return;
+            weekMenu = {};
+            for (let d = 0; d < 7; d++) {
+                for (let m = 0; m < 4; m++) {
+                    weekMenu[`${d}-${m}`] = null;
+                }
+            }
+            try {
+                await apiFetch('/api/menu/', { method: 'PUT', body: weekMenu });
+                generateWeekPlanner();
+            } catch (e) {
+                showError(e.message || 'Ошибка очистки меню');
+            }
+        }
+
+        async function generateShoppingList() {
             const startDate = document.getElementById('shoppingStartDate').value;
             const endDate = document.getElementById('shoppingEndDate').value;
 
             if (!startDate || !endDate) {
-                alert('Выберите даты!');
+                showError('Выберите даты!');
                 return;
             }
 
-            // For demo, we'll collect all ingredients from the week menu
-            const ingredientMap = {};
-            
-            Object.values(weekMenu).forEach(recipeId => {
-                const recipe = recipes.find(r => r.id === recipeId);
-                if (recipe) {
-                    recipe.ingredients.forEach(ri => {
-                        const ing = ingredients.find(i => i.id === ri.ingredientId);
-                        if (ing) {
-                            if (ingredientMap[ing.id]) {
-                                ingredientMap[ing.id].weight += ri.weight;
-                            } else {
-                                ingredientMap[ing.id] = {
-                                    name: ing.name,
-                                    weight: ri.weight
-                                };
-                            }
-                        }
-                    });
+            try {
+                const items = await apiFetch('/api/shopping-list/', {
+                    method: 'POST',
+                    body: { start_date: startDate, end_date: endDate }
+                });
+
+                const container = document.getElementById('shoppingList');
+                if (items.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>Нет ингредиентов для выбранного периода</p></div>';
+                    return;
                 }
-            });
 
-            const container = document.getElementById('shoppingList');
-            const items = Object.values(ingredientMap);
-
-            if (items.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>Нет ингредиентов для выбранного периода</p></div>';
-                return;
+                container.innerHTML = items.map((item, index) => `
+                    <div class="shopping-item">
+                        <input type="checkbox" id="shop-${index}" onchange="toggleShoppingItem(this)">
+                        <label for="shop-${index}">
+                            <strong>${item.name}</strong> - ${item.weight_grams}г
+                        </label>
+                    </div>
+                `).join('');
+            } catch (e) {
+                showError(e.message || 'Ошибка формирования списка покупок');
             }
-
-            container.innerHTML = items.map((item, index) => `
-                <div class="shopping-item">
-                    <input type="checkbox" id="shop-${index}" onchange="toggleShoppingItem(this)">
-                    <label for="shop-${index}">
-                        <strong>${item.name}</strong> - ${item.weight.toFixed(0)}г
-                    </label>
-                </div>
-            `).join('');
         }
 
         function toggleShoppingItem(checkbox) {

@@ -5,11 +5,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView as AuthLoginView
 from django.contrib.auth.views import LogoutView as AuthLogoutView
 from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import CreateView, TemplateView
 
 from config.forms import RegisterForm
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class RecipeManagerView(LoginRequiredMixin, TemplateView):
     """Recipe manager page; requires authentication."""
 
