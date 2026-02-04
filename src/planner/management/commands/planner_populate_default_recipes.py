@@ -11,7 +11,9 @@ from planner.models import Ingredient, Recipe, RecipeIngredient
 
 User = get_user_model()
 
-RECIPES_CSV_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "recipes.csv"
+RECIPES_CSV_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "recipes.csv"
+)
 
 
 def load_recipes_from_csv(path: Path) -> list[dict]:
@@ -28,11 +30,13 @@ def load_recipes_from_csv(path: Path) -> list[dict]:
                 weight_grams = int(row.get("Вес (г)", 0))
             except (ValueError, TypeError):
                 continue
-            rows.append({
-                "recipe_name": recipe_name,
-                "ingredient_name": ingredient_name,
-                "weight_grams": weight_grams,
-            })
+            rows.append(
+                {
+                    "recipe_name": recipe_name,
+                    "ingredient_name": ingredient_name,
+                    "weight_grams": weight_grams,
+                }
+            )
     return rows
 
 
@@ -52,7 +56,9 @@ class Command(BaseCommand):
 
         if not RECIPES_CSV_PATH.exists():
             logger.error("Recipes CSV not found: %s", RECIPES_CSV_PATH)
-            self.stderr.write(self.style.ERROR(f"Recipes CSV not found: {RECIPES_CSV_PATH}"))
+            self.stderr.write(
+                self.style.ERROR(f"Recipes CSV not found: {RECIPES_CSV_PATH}")
+            )
             return
 
         rows = load_recipes_from_csv(RECIPES_CSV_PATH)
@@ -70,7 +76,11 @@ class Command(BaseCommand):
                 name=data["ingredient_name"],
             ).first()
             if not ingredient:
-                logger.warning("Ingredient not found, skipping row: %s / %s", data["recipe_name"], data["ingredient_name"])
+                logger.warning(
+                    "Ingredient not found, skipping row: %s / %s",
+                    data["recipe_name"],
+                    data["ingredient_name"],
+                )
                 continue
 
             _, ri_created = RecipeIngredient.objects.update_or_create(
@@ -79,6 +89,10 @@ class Command(BaseCommand):
                 defaults={"weight_grams": data["weight_grams"]},
             )
             if ri_created:
-                logger.info("Added ingredient %s to recipe %s", data["ingredient_name"], data["recipe_name"])
+                logger.info(
+                    "Added ingredient %s to recipe %s",
+                    data["ingredient_name"],
+                    data["recipe_name"],
+                )
 
         self.stdout.write(self.style.SUCCESS("Default recipes populated."))

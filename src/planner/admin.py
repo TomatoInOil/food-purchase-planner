@@ -20,7 +20,14 @@ class IngredientAdmin(admin.ModelAdmin):
 
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ("name", "user", "total_calories", "total_protein", "total_fat", "total_carbs")
+    list_display = (
+        "name",
+        "user",
+        "total_calories",
+        "total_protein",
+        "total_fat",
+        "total_carbs",
+    )
     list_filter = ("user",)
     search_fields = ("name", "description")
     inlines = [RecipeIngredientInline]

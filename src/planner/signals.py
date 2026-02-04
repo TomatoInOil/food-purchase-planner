@@ -16,6 +16,13 @@ def recalculate_recipe_nutrition(sender, instance, **kwargs):
     """Update cached nutrition fields on the parent recipe when ingredients change."""
     try:
         instance.recipe.recalculate_nutrition()
-        instance.recipe.save(update_fields=["total_calories", "total_protein", "total_fat", "total_carbs"])
+        instance.recipe.save(
+            update_fields=[
+                "total_calories",
+                "total_protein",
+                "total_fat",
+                "total_carbs",
+            ]
+        )
     except Exception as e:
         logger.exception("Failed to recalculate recipe nutrition: %s", e)

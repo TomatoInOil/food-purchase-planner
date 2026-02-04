@@ -138,9 +138,11 @@ def recipe_list_or_create(request):
 
 
 def _recipe_list(request):
-    recipes = Recipe.objects.select_related("user").prefetch_related(
-        "recipe_ingredients__ingredient"
-    ).order_by("name")
+    recipes = (
+        Recipe.objects.select_related("user")
+        .prefetch_related("recipe_ingredients__ingredient")
+        .order_by("name")
+    )
     data = [
         _recipe_to_dict(r, is_owner=(r.user_id == request.user.id)) for r in recipes
     ]
@@ -159,9 +161,11 @@ def recipe_detail_update_delete(request, pk):
 
 def _recipe_detail(request, pk):
     try:
-        recipe = Recipe.objects.select_related("user").prefetch_related(
-            "recipe_ingredients__ingredient"
-        ).get(pk=pk)
+        recipe = (
+            Recipe.objects.select_related("user")
+            .prefetch_related("recipe_ingredients__ingredient")
+            .get(pk=pk)
+        )
     except Recipe.DoesNotExist:
         return JsonResponse({"error": "Recipe not found"}, status=404)
 
@@ -273,9 +277,9 @@ def _recipe_update(request, pk):
 
     return JsonResponse(
         _recipe_to_dict(
-            Recipe.objects.select_related("user").prefetch_related(
-                "recipe_ingredients__ingredient"
-            ).get(pk=recipe.pk),
+            Recipe.objects.select_related("user")
+            .prefetch_related("recipe_ingredients__ingredient")
+            .get(pk=recipe.pk),
             is_owner=True,
         )
     )
@@ -402,9 +406,9 @@ def shopping_list(request):
             recipe_id = slots_by_day_meal.get((day_of_week, meal_type))
             if not recipe_id:
                 continue
-            for ri in RecipeIngredient.objects.filter(recipe_id=recipe_id).select_related(
-                "ingredient"
-            ):
+            for ri in RecipeIngredient.objects.filter(
+                recipe_id=recipe_id
+            ).select_related("ingredient"):
                 ing_id = ri.ingredient_id
                 if ing_id not in aggregated:
                     aggregated[ing_id] = {"name": ri.ingredient.name, "weight_grams": 0}
