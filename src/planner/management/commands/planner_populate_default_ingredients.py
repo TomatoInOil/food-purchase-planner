@@ -1,6 +1,8 @@
 """Management command to create system user and default ingredients."""
 
+import csv
 import logging
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
@@ -9,16 +11,29 @@ from planner.models import Ingredient
 
 User = get_user_model()
 
-DEFAULT_INGREDIENTS = [
-    {"name": "Куриная грудка", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-    {"name": "Рис", "calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
-    {"name": "Брокколи", "calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
-    {"name": "Яйцо", "calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-    {"name": "Овсянка", "calories": 389, "protein": 16.9, "fat": 6.9, "carbs": 66.3},
-    {"name": "Банан", "calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
-    {"name": "Греческий йогурт", "calories": 59, "protein": 10, "fat": 0.4, "carbs": 3.6},
-    {"name": "Лосось", "calories": 208, "protein": 20, "fat": 13, "carbs": 0},
-]
+INGREDIENTS_CSV_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "ingredients.csv"
+
+
+def load_ingredients_from_csv(path: Path) -> list[dict]:
+    """Read ingredients from CSV (delimiter ';', header: name, calories, protein, fat, carbs)."""
+    rows = []
+    with path.open(encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for row in reader:
+            name = (row.get("Название ингредиента") or "").strip()
+            if not name:
+                continue
+            try:
+                rows.append({
+                    "name": name,
+                    "calories": int(row.get("Ккал", 0)),
+                    "protein": int(row.get("Белки", 0)),
+                    "fat": int(row.get("Жиры", 0)),
+                    "carbs": int(row.get("Углеводы", 0)),
+                })
+            except (ValueError, TypeError):
+                continue
+    return rows
 
 
 class Command(BaseCommand):
@@ -35,7 +50,13 @@ class Command(BaseCommand):
         else:
             logger.debug("System user already exists")
 
-        for data in DEFAULT_INGREDIENTS:
+        if not INGREDIENTS_CSV_PATH.exists():
+            logger.error("Ingredients CSV not found: %s", INGREDIENTS_CSV_PATH)
+            self.stderr.write(self.style.ERROR(f"Ingredients CSV not found: {INGREDIENTS_CSV_PATH}"))
+            return
+
+        ingredients = load_ingredients_from_csv(INGREDIENTS_CSV_PATH)
+        for data in ingredients:
             _, created = Ingredient.objects.get_or_create(
                 user=system_user,
                 name=data["name"],
