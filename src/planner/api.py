@@ -376,6 +376,17 @@ def shopping_list(request):
     if start_date > end_date:
         return _error_response("start_date must be before or equal to end_date")
 
+    raw_people = body.get("people_count")
+    if raw_people is None:
+        people_count = 2
+    else:
+        try:
+            people_count = int(raw_people)
+        except (TypeError, ValueError):
+            return _error_response("people_count must be an integer")
+        if not (1 <= people_count <= 20):
+            return _error_response("people_count must be between 1 and 20")
+
     user = request.user
     slots_by_day_meal = {
         (s.day_of_week, s.meal_type): s.recipe_id
@@ -400,7 +411,7 @@ def shopping_list(request):
         current += timedelta(days=1)
 
     result = [
-        {"name": v["name"], "weight_grams": v["weight_grams"]}
+        {"name": v["name"], "weight_grams": round(v["weight_grams"] * people_count)}
         for v in aggregated.values()
     ]
     result.sort(key=lambda x: x["name"])

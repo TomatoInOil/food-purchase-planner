@@ -129,6 +129,10 @@
                         <label>До</label>
                         <input type="date" id="shoppingEndDate">
                     </div>
+                    <div class="form-group">
+                        <label>Кол-во человек</label>
+                        <input type="number" id="shoppingPeopleCount" min="1" max="20" value="2">
+                    </div>
                     <button class="btn btn-primary" onclick="generateShoppingList()">Сформировать список</button>
                 </div>
                 <div class="shopping-list" id="shoppingList">
@@ -661,6 +665,11 @@
         async function generateShoppingList() {
             const startDate = document.getElementById('shoppingStartDate').value;
             const endDate = document.getElementById('shoppingEndDate').value;
+            const peopleInput = document.getElementById('shoppingPeopleCount');
+            let peopleCount = parseInt(peopleInput.value, 10);
+            if (isNaN(peopleCount) || peopleCount < 1 || peopleCount > 20) {
+                peopleCount = 2;
+            }
 
             if (!startDate || !endDate) {
                 showError('Выберите даты!');
@@ -670,7 +679,7 @@
             try {
                 const items = await apiFetch('/api/shopping-list/', {
                     method: 'POST',
-                    body: { start_date: startDate, end_date: endDate }
+                    body: { start_date: startDate, end_date: endDate, people_count: peopleCount }
                 });
 
                 const container = document.getElementById('shoppingList');
