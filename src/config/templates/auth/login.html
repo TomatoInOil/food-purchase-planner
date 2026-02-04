@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход</title>
+    <link rel="stylesheet" href="{% static 'css/recipe_manager.css' %}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Вход</h1>
+            <p class="subtitle">Войдите в менеджер рецептов</p>
+        </header>
+
+        <div class="card">
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="form-errors">
+                        {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="id_username">Имя пользователя</label>
+                    <input type="text" name="username" id="id_username" required autofocus
+                           value="{{ form.username.value|default:'' }}"
+                           placeholder="Имя пользователя">
+                    {% if form.username.errors %}
+                        <p class="field-error">{{ form.username.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_password">Пароль</label>
+                    <div class="password-wrap">
+                        <input type="password" name="password" id="id_password" required placeholder="Пароль">
+                        <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    </div>
+                    {% if form.password.errors %}
+                        <p class="field-error">{{ form.password.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <input type="hidden" name="next" value="{{ next }}">
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Войти</button>
+                    <a href="/register/" class="btn btn-secondary">Регистрация</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.password-toggle').forEach(function(btn) {
+            var input = btn.parentElement.querySelector('input');
+            function show() { input.type = 'text'; }
+            function hide() { input.type = 'password'; }
+            btn.addEventListener('mousedown', function(e) { if (e.button === 0) show(); });
+            btn.addEventListener('mouseup', hide);
+            btn.addEventListener('mouseleave', hide);
+        });
+    </script>
+</body>
+</html>

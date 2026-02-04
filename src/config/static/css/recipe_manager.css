@@ -40,7 +40,14 @@ header {
     border-radius: 15px;
     box-shadow: var(--shadow-lg);
     margin-bottom: 30px;
-    text-align: center;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 h1 {
@@ -155,6 +162,45 @@ h1 {
 
 .form-group--inline {
     margin-bottom: 0;
+}
+
+.form-errors,
+.field-error {
+    color: var(--danger);
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.form-errors {
+    margin-bottom: 15px;
+}
+
+.password-wrap {
+    position: relative;
+}
+
+.password-wrap input {
+    padding-right: 2.75em;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 1.1em;
+    opacity: 0.7;
+    border-radius: 4px;
+}
+
+.password-toggle:hover {
+    opacity: 1;
 }
 
 label {

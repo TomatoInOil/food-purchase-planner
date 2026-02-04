@@ -17,9 +17,13 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path
-from django.views.generic import TemplateView
+
+from config.views import LoginView, LogoutView, RecipeManagerView, RegisterView
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="recipe_manager.html")),
+    path("", RecipeManagerView.as_view()),
+    path("login/", LoginView.as_view(), name="login"),
+    path("register/", RegisterView.as_view(), name="register"),
+    path("logout/", LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
 ]

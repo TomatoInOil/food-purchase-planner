@@ -1,0 +1,83 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация</title>
+    <link rel="stylesheet" href="{% static 'css/recipe_manager.css' %}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Регистрация</h1>
+            <p class="subtitle">Создайте учётную запись</p>
+        </header>
+
+        <div class="card">
+            <form method="post" action="">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="form-errors">
+                        {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="id_username">Имя пользователя</label>
+                    <input type="text" name="username" id="id_username" required autofocus
+                           value="{{ form.username.value|default:'' }}"
+                           maxlength="150" placeholder="Имя пользователя">
+                    {% if form.username.errors %}
+                        <p class="field-error">{{ form.username.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_email">Email (необязательно)</label>
+                    <input type="email" name="email" id="id_email"
+                           value="{{ form.email.value|default:'' }}"
+                           placeholder="email@example.com">
+                    {% if form.email.errors %}
+                        <p class="field-error">{{ form.email.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_password1">Пароль</label>
+                    <div class="password-wrap">
+                        <input type="password" name="password1" id="id_password1" required placeholder="Пароль">
+                        <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    </div>
+                    {% if form.password1.errors %}
+                        <p class="field-error">{{ form.password1.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_password2">Подтверждение пароля</label>
+                    <div class="password-wrap">
+                        <input type="password" name="password2" id="id_password2" required placeholder="Повторите пароль">
+                        <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    </div>
+                    {% if form.password2.errors %}
+                        <p class="field-error">{{ form.password2.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+                    <a href="/login/" class="btn btn-secondary">Вход</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.password-toggle').forEach(function(btn) {
+            var input = btn.parentElement.querySelector('input');
+            function show() { input.type = 'text'; }
+            function hide() { input.type = 'password'; }
+            btn.addEventListener('mousedown', function(e) { if (e.button === 0) show(); });
+            btn.addEventListener('mouseup', hide);
+            btn.addEventListener('mouseleave', hide);
+        });
+    </script>
+</body>
+</html>
