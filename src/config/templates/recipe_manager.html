@@ -1,0 +1,1090 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Менеджер рецептов и меню</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2ecc71;
+            --primary-dark: #27ae60;
+            --secondary: #3498db;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --white: #ffffff;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--dark);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 25px;
+            background: var(--white);
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: var(--shadow);
+            color: var(--dark);
+        }
+
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.8em;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--dark);
+            font-weight: 600;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--light);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: var(--white);
+        }
+
+        .btn-secondary:hover {
+            background: #2980b9;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: var(--white);
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+
+        .ingredient-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: end;
+        }
+
+        .ingredient-list {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ingredient-item {
+            background: var(--white);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+
+        .nutrition-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .nutrition-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .nutrition-card h4 {
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .nutrition-card .value {
+            font-size: 2em;
+            font-weight: 700;
+        }
+
+        .recipe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .recipe-card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+
+        .recipe-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .recipe-card h3 {
+            color: var(--dark);
+            margin-bottom: 10px;
+        }
+
+        .recipe-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+
+        .week-planner {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .day-card {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: var(--shadow);
+        }
+
+        .day-card h3 {
+            color: var(--dark);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .meal-slot {
+            margin-bottom: 15px;
+        }
+
+        .meal-slot h4 {
+            font-size: 0.9em;
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+
+        .meal-slot select {
+            font-size: 0.9em;
+            padding: 8px;
+        }
+
+        .shopping-list {
+            background: var(--white);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .shopping-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--light);
+        }
+
+        .shopping-item:last-child {
+            border-bottom: none;
+        }
+
+        .shopping-item input[type="checkbox"] {
+            width: auto;
+            margin-right: 15px;
+            transform: scale(1.3);
+        }
+
+        .shopping-item.checked {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        .date-range {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: end;
+        }
+
+        .date-range .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .ingredient-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .ingredient-table th,
+        .ingredient-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--light);
+        }
+
+        .ingredient-table th {
+            background: var(--primary);
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        .ingredient-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            padding: 12px 20px;
+            border-radius: 25px;
+            border: 2px solid var(--light);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #95a5a6;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .ingredient-row {
+                grid-template-columns: 1fr;
+            }
+
+            .nutrition-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab-btn {
+                width: 100%;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #95a5a6;
+        }
+
+        .close-modal:hover {
+            color: var(--dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍳 Менеджер рецептов</h1>
+            <p class="subtitle">Планируйте меню, создавайте рецепты и считайте калории</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('recipes')">📖 Рецепты</button>
+            <button class="tab-btn" onclick="switchTab('create-recipe')">➕ Создать рецепт</button>
+            <button class="tab-btn" onclick="switchTab('menu')">📅 Меню на неделю</button>
+            <button class="tab-btn" onclick="switchTab('shopping')">🛒 Список покупок</button>
+            <button class="tab-btn" onclick="switchTab('ingredients')">🥗 Ингредиенты</button>
+        </div>
+
+        <!-- Рецепты -->
+        <div id="recipes" class="tab-content active">
+            <div class="card">
+                <h2 class="card-title">Все рецепты</h2>
+                <div class="search-box">
+                    <input type="text" placeholder="🔍 Поиск рецептов..." id="recipeSearch" onkeyup="filterRecipes()">
+                </div>
+                <div class="recipe-grid" id="recipeList">
+                    <!-- Recipes will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Создание рецепта -->
+        <div id="create-recipe" class="tab-content">
+            <div class="card">
+                <h2 class="card-title">Создать новый рецепт</h2>
+                <form id="recipeForm" onsubmit="saveRecipe(event)">
+                    <div class="form-group">
+                        <label>Название рецепта</label>
+                        <input type="text" name="recipeName" required placeholder="Например: Греческий салат">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <textarea name="recipeDescription" placeholder="Краткое описание рецепта..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Инструкция по приготовлению</label>
+                        <textarea name="recipeInstructions" placeholder="Опишите шаги приготовления..."></textarea>
+                    </div>
+
+                    <h3 style="margin: 30px 0 20px 0; color: var(--dark);">Ингредиенты</h3>
+                    <div id="ingredientsContainer">
+                        <!-- Ingredient rows will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="addIngredientRow()">
+                        + Добавить ингредиент
+                    </button>
+
+                    <div class="nutrition-info" id="totalNutrition">
+                        <div class="nutrition-card">
+                            <h4>Калории</h4>
+                            <div class="value" id="totalCalories">0</div>
+                            <small>ккал</small>
+                        </div>
+                        <div class="nutrition-card">
+                            <h4>Белки</h4>
+                            <div class="value" id="totalProtein">0</div>
+                            <small>г</small>
+                        </div>
+                        <div class="nutrition-card">
+                            <h4>Жиры</h4>
+                            <div class="value" id="totalFat">0</div>
+                            <small>г</small>
+                        </div>
+                        <div class="nutrition-card">
+                            <h4>Углеводы</h4>
+                            <div class="value" id="totalCarbs">0</div>
+                            <small>г</small>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 30px;">
+                        <button type="submit" class="btn btn-primary">💾 Сохранить рецепт</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearRecipeForm()">🔄 Очистить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Меню на неделю -->
+        <div id="menu" class="tab-content">
+            <div class="card">
+                <h2 class="card-title">Планирование меню на неделю</h2>
+                <div class="week-planner" id="weekPlanner">
+                    <!-- Week planner will be generated here -->
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="saveWeekMenu()">💾 Сохранить меню</button>
+                    <button class="btn btn-secondary" onclick="clearWeekMenu()">🔄 Очистить меню</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Список покупок -->
+        <div id="shopping" class="tab-content">
+            <div class="card">
+                <h2 class="card-title">Список покупок</h2>
+                <div class="date-range">
+                    <div class="form-group">
+                        <label>От</label>
+                        <input type="date" id="shoppingStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>До</label>
+                        <input type="date" id="shoppingEndDate">
+                    </div>
+                    <button class="btn btn-primary" onclick="generateShoppingList()">Сформировать список</button>
+                </div>
+                <div class="shopping-list" id="shoppingList">
+                    <div class="empty-state">
+                        <p>Выберите даты и нажмите "Сформировать список"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ингредиенты -->
+        <div id="ingredients" class="tab-content">
+            <div class="card">
+                <h2 class="card-title">База ингредиентов</h2>
+                
+                <div style="margin-bottom: 30px;">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">Добавить новый ингредиент</h3>
+                    <form id="ingredientForm" onsubmit="saveIngredient(event)">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Название</label>
+                                <input type="text" name="ingredientName" required placeholder="Например: Куриная грудка">
+                            </div>
+                            <div class="form-group">
+                                <label>Калории (на 100г)</label>
+                                <input type="number" name="calories" step="0.1" required placeholder="165">
+                            </div>
+                            <div class="form-group">
+                                <label>Белки (г на 100г)</label>
+                                <input type="number" name="protein" step="0.1" required placeholder="31">
+                            </div>
+                            <div class="form-group">
+                                <label>Жиры (г на 100г)</label>
+                                <input type="number" name="fat" step="0.1" required placeholder="3.6">
+                            </div>
+                            <div class="form-group">
+                                <label>Углеводы (г на 100г)</label>
+                                <input type="number" name="carbs" step="0.1" required placeholder="0">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">➕ Добавить ингредиент</button>
+                    </form>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" placeholder="🔍 Поиск ингредиентов..." id="ingredientSearch" onkeyup="filterIngredients()">
+                </div>
+
+                <table class="ingredient-table" id="ingredientTable">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>Калории</th>
+                            <th>Белки (г)</th>
+                            <th>Жиры (г)</th>
+                            <th>Углеводы (г)</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ingredientTableBody">
+                        <!-- Ingredients will be listed here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for recipe details -->
+    <div id="recipeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalRecipeName"></h2>
+                <button class="close-modal" onclick="closeRecipeModal()">&times;</button>
+            </div>
+            <div id="modalRecipeContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Data storage
+        let recipes = JSON.parse(localStorage.getItem('recipes')) || [];
+        let ingredients = JSON.parse(localStorage.getItem('ingredients')) || getDefaultIngredients();
+        let weekMenu = JSON.parse(localStorage.getItem('weekMenu')) || {};
+
+        // Default ingredients
+        function getDefaultIngredients() {
+            return [
+                { id: 1, name: 'Куриная грудка', calories: 165, protein: 31, fat: 3.6, carbs: 0 },
+                { id: 2, name: 'Рис', calories: 130, protein: 2.7, fat: 0.3, carbs: 28 },
+                { id: 3, name: 'Брокколи', calories: 34, protein: 2.8, fat: 0.4, carbs: 7 },
+                { id: 4, name: 'Яйцо', calories: 155, protein: 13, fat: 11, carbs: 1.1 },
+                { id: 5, name: 'Овсянка', calories: 389, protein: 16.9, fat: 6.9, carbs: 66.3 },
+                { id: 6, name: 'Банан', calories: 89, protein: 1.1, fat: 0.3, carbs: 23 },
+                { id: 7, name: 'Греческий йогурт', calories: 59, protein: 10, fat: 0.4, carbs: 3.6 },
+                { id: 8, name: 'Лосось', calories: 208, protein: 20, fat: 13, carbs: 0 },
+            ];
+        }
+
+        // Initialize
+        function init() {
+            renderRecipes();
+            renderIngredients();
+            generateWeekPlanner();
+            addIngredientRow();
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            const tabs = document.querySelectorAll('.tab-content');
+            const buttons = document.querySelectorAll('.tab-btn');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Add ingredient row
+        function addIngredientRow() {
+            const container = document.getElementById('ingredientsContainer');
+            const row = document.createElement('div');
+            row.className = 'ingredient-row';
+            row.innerHTML = `
+                <div class="form-group" style="margin-bottom: 0;">
+                    <select class="ingredient-select" onchange="calculateNutrition()" required>
+                        <option value="">Выберите ингредиент</option>
+                        ${ingredients.map(ing => `<option value="${ing.id}">${ing.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input type="number" class="ingredient-weight" placeholder="Вес (г)" min="1" onchange="calculateNutrition()" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input type="text" class="ingredient-nutrition" readonly placeholder="КБЖУ">
+                </div>
+                <button type="button" class="btn btn-danger btn-small" onclick="removeIngredientRow(this)">✕</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeIngredientRow(button) {
+            button.parentElement.remove();
+            calculateNutrition();
+        }
+
+        // Calculate nutrition
+        function calculateNutrition() {
+            const rows = document.querySelectorAll('.ingredient-row');
+            let totalCalories = 0, totalProtein = 0, totalFat = 0, totalCarbs = 0;
+
+            rows.forEach(row => {
+                const select = row.querySelector('.ingredient-select');
+                const weight = parseFloat(row.querySelector('.ingredient-weight').value) || 0;
+                const nutritionField = row.querySelector('.ingredient-nutrition');
+
+                if (select.value && weight > 0) {
+                    const ingredient = ingredients.find(ing => ing.id == select.value);
+                    if (ingredient) {
+                        const multiplier = weight / 100;
+                        const calories = (ingredient.calories * multiplier).toFixed(1);
+                        const protein = (ingredient.protein * multiplier).toFixed(1);
+                        const fat = (ingredient.fat * multiplier).toFixed(1);
+                        const carbs = (ingredient.carbs * multiplier).toFixed(1);
+
+                        nutritionField.value = `${calories}к ${protein}б ${fat}ж ${carbs}у`;
+
+                        totalCalories += parseFloat(calories);
+                        totalProtein += parseFloat(protein);
+                        totalFat += parseFloat(fat);
+                        totalCarbs += parseFloat(carbs);
+                    }
+                } else {
+                    nutritionField.value = '';
+                }
+            });
+
+            document.getElementById('totalCalories').textContent = totalCalories.toFixed(1);
+            document.getElementById('totalProtein').textContent = totalProtein.toFixed(1);
+            document.getElementById('totalFat').textContent = totalFat.toFixed(1);
+            document.getElementById('totalCarbs').textContent = totalCarbs.toFixed(1);
+        }
+
+        // Save recipe
+        function saveRecipe(event) {
+            event.preventDefault();
+            const form = event.target;
+            const rows = document.querySelectorAll('.ingredient-row');
+            const recipeIngredients = [];
+
+            rows.forEach(row => {
+                const ingredientId = row.querySelector('.ingredient-select').value;
+                const weight = parseFloat(row.querySelector('.ingredient-weight').value);
+                if (ingredientId && weight) {
+                    recipeIngredients.push({ ingredientId: parseInt(ingredientId), weight });
+                }
+            });
+
+            if (recipeIngredients.length === 0) {
+                alert('Добавьте хотя бы один ингредиент!');
+                return;
+            }
+
+            const recipe = {
+                id: Date.now(),
+                name: form.recipeName.value,
+                description: form.recipeDescription.value,
+                instructions: form.recipeInstructions.value,
+                ingredients: recipeIngredients,
+                nutrition: {
+                    calories: parseFloat(document.getElementById('totalCalories').textContent),
+                    protein: parseFloat(document.getElementById('totalProtein').textContent),
+                    fat: parseFloat(document.getElementById('totalFat').textContent),
+                    carbs: parseFloat(document.getElementById('totalCarbs').textContent)
+                }
+            };
+
+            recipes.push(recipe);
+            localStorage.setItem('recipes', JSON.stringify(recipes));
+            
+            alert('Рецепт успешно сохранён!');
+            clearRecipeForm();
+            renderRecipes();
+            switchTab('recipes');
+        }
+
+        function clearRecipeForm() {
+            document.getElementById('recipeForm').reset();
+            document.getElementById('ingredientsContainer').innerHTML = '';
+            addIngredientRow();
+            calculateNutrition();
+        }
+
+        // Render recipes
+        function renderRecipes() {
+            const container = document.getElementById('recipeList');
+            if (recipes.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1;">
+                        <p>Пока нет рецептов. Создайте свой первый рецепт!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = recipes.map(recipe => `
+                <div class="recipe-card" onclick="showRecipeDetails(${recipe.id})">
+                    <h3>${recipe.name}</h3>
+                    <p style="color: #7f8c8d; margin: 10px 0;">${recipe.description || 'Без описания'}</p>
+                    <div class="recipe-meta">
+                        <span>🔥 ${recipe.nutrition.calories.toFixed(0)} ккал</span>
+                        <span>🥩 ${recipe.nutrition.protein.toFixed(0)}г</span>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterRecipes() {
+            const search = document.getElementById('recipeSearch').value.toLowerCase();
+            const cards = document.querySelectorAll('.recipe-card');
+            cards.forEach(card => {
+                const name = card.querySelector('h3').textContent.toLowerCase();
+                card.style.display = name.includes(search) ? 'block' : 'none';
+            });
+        }
+
+        function showRecipeDetails(recipeId) {
+            const recipe = recipes.find(r => r.id === recipeId);
+            if (!recipe) return;
+
+            const modal = document.getElementById('recipeModal');
+            document.getElementById('modalRecipeName').textContent = recipe.name;
+            
+            const ingredientsList = recipe.ingredients.map(ri => {
+                const ing = ingredients.find(i => i.id === ri.ingredientId);
+                return `<li>${ing.name} - ${ri.weight}г</li>`;
+            }).join('');
+
+            document.getElementById('modalRecipeContent').innerHTML = `
+                <div style="margin-bottom: 20px;">
+                    <p><strong>Описание:</strong> ${recipe.description || 'Нет описания'}</p>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <h3>Ингредиенты:</h3>
+                    <ul>${ingredientsList}</ul>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <h3>Инструкция:</h3>
+                    <p style="white-space: pre-wrap;">${recipe.instructions || 'Нет инструкции'}</p>
+                </div>
+                <div class="nutrition-info">
+                    <div class="nutrition-card">
+                        <h4>Калории</h4>
+                        <div class="value">${recipe.nutrition.calories.toFixed(0)}</div>
+                        <small>ккал</small>
+                    </div>
+                    <div class="nutrition-card">
+                        <h4>Белки</h4>
+                        <div class="value">${recipe.nutrition.protein.toFixed(1)}</div>
+                        <small>г</small>
+                    </div>
+                    <div class="nutrition-card">
+                        <h4>Жиры</h4>
+                        <div class="value">${recipe.nutrition.fat.toFixed(1)}</div>
+                        <small>г</small>
+                    </div>
+                    <div class="nutrition-card">
+                        <h4>Углеводы</h4>
+                        <div class="value">${recipe.nutrition.carbs.toFixed(1)}</div>
+                        <small>г</small>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        function closeRecipeModal() {
+            document.getElementById('recipeModal').classList.remove('active');
+        }
+
+        function deleteRecipe(recipeId) {
+            if (confirm('Вы уверены, что хотите удалить этот рецепт?')) {
+                recipes = recipes.filter(r => r.id !== recipeId);
+                localStorage.setItem('recipes', JSON.stringify(recipes));
+                renderRecipes();
+            }
+        }
+
+        // Save ingredient
+        function saveIngredient(event) {
+            event.preventDefault();
+            const form = event.target;
+
+            const ingredient = {
+                id: Date.now(),
+                name: form.ingredientName.value,
+                calories: parseFloat(form.calories.value),
+                protein: parseFloat(form.protein.value),
+                fat: parseFloat(form.fat.value),
+                carbs: parseFloat(form.carbs.value)
+            };
+
+            ingredients.push(ingredient);
+            localStorage.setItem('ingredients', JSON.stringify(ingredients));
+            
+            form.reset();
+            renderIngredients();
+            alert('Ингредиент успешно добавлен!');
+        }
+
+        // Render ingredients
+        function renderIngredients() {
+            const tbody = document.getElementById('ingredientTableBody');
+            tbody.innerHTML = ingredients.map(ing => `
+                <tr>
+                    <td><strong>${ing.name}</strong></td>
+                    <td>${ing.calories}</td>
+                    <td>${ing.protein}</td>
+                    <td>${ing.fat}</td>
+                    <td>${ing.carbs}</td>
+                    <td>
+                        <button class="btn btn-danger btn-small" onclick="deleteIngredient(${ing.id})">Удалить</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterIngredients() {
+            const search = document.getElementById('ingredientSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#ingredientTableBody tr');
+            rows.forEach(row => {
+                const name = row.querySelector('td').textContent.toLowerCase();
+                row.style.display = name.includes(search) ? '' : 'none';
+            });
+        }
+
+        function deleteIngredient(ingredientId) {
+            if (confirm('Вы уверены, что хотите удалить этот ингредиент?')) {
+                ingredients = ingredients.filter(i => i.id !== ingredientId);
+                localStorage.setItem('ingredients', JSON.stringify(ingredients));
+                renderIngredients();
+            }
+        }
+
+        // Week planner
+        function generateWeekPlanner() {
+            const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+            const meals = ['Завтрак', 'Обед', 'Перекус', 'Ужин'];
+            const container = document.getElementById('weekPlanner');
+
+            container.innerHTML = days.map((day, dayIndex) => `
+                <div class="day-card">
+                    <h3>${day}</h3>
+                    ${meals.map((meal, mealIndex) => `
+                        <div class="meal-slot">
+                            <h4>${meal}</h4>
+                            <select data-day="${dayIndex}" data-meal="${mealIndex}" onchange="updateWeekMenu()">
+                                <option value="">Не выбрано</option>
+                                ${recipes.map(r => `
+                                    <option value="${r.id}" ${weekMenu[`${dayIndex}-${mealIndex}`] == r.id ? 'selected' : ''}>
+                                        ${r.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        function updateWeekMenu() {
+            const selects = document.querySelectorAll('#weekPlanner select');
+            weekMenu = {};
+            selects.forEach(select => {
+                if (select.value) {
+                    const key = `${select.dataset.day}-${select.dataset.meal}`;
+                    weekMenu[key] = parseInt(select.value);
+                }
+            });
+        }
+
+        function saveWeekMenu() {
+            localStorage.setItem('weekMenu', JSON.stringify(weekMenu));
+            alert('Меню на неделю сохранено!');
+        }
+
+        function clearWeekMenu() {
+            if (confirm('Очистить все меню?')) {
+                weekMenu = {};
+                localStorage.setItem('weekMenu', JSON.stringify(weekMenu));
+                generateWeekPlanner();
+            }
+        }
+
+        // Shopping list
+        function generateShoppingList() {
+            const startDate = document.getElementById('shoppingStartDate').value;
+            const endDate = document.getElementById('shoppingEndDate').value;
+
+            if (!startDate || !endDate) {
+                alert('Выберите даты!');
+                return;
+            }
+
+            // For demo, we'll collect all ingredients from the week menu
+            const ingredientMap = {};
+            
+            Object.values(weekMenu).forEach(recipeId => {
+                const recipe = recipes.find(r => r.id === recipeId);
+                if (recipe) {
+                    recipe.ingredients.forEach(ri => {
+                        const ing = ingredients.find(i => i.id === ri.ingredientId);
+                        if (ing) {
+                            if (ingredientMap[ing.id]) {
+                                ingredientMap[ing.id].weight += ri.weight;
+                            } else {
+                                ingredientMap[ing.id] = {
+                                    name: ing.name,
+                                    weight: ri.weight
+                                };
+                            }
+                        }
+                    });
+                }
+            });
+
+            const container = document.getElementById('shoppingList');
+            const items = Object.values(ingredientMap);
+
+            if (items.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Нет ингредиентов для выбранного периода</p></div>';
+                return;
+            }
+
+            container.innerHTML = items.map((item, index) => `
+                <div class="shopping-item">
+                    <input type="checkbox" id="shop-${index}" onchange="toggleShoppingItem(this)">
+                    <label for="shop-${index}">
+                        <strong>${item.name}</strong> - ${item.weight.toFixed(0)}г
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        function toggleShoppingItem(checkbox) {
+            checkbox.parentElement.classList.toggle('checked', checkbox.checked);
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
