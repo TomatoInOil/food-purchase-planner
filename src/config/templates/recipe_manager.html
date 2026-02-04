@@ -445,6 +445,7 @@
                     ? `<button class="btn btn-secondary btn-small" onclick="event.stopPropagation(); loadRecipeForEdit(${recipe.id})">Редактировать</button>
                        <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>`
                     : '';
+                const author = recipe.author_username ? `@${recipe.author_username}` : '';
                 return `
                 <div class="recipe-card" onclick="showRecipeDetails(${recipe.id})">
                     <h3>${recipe.name}</h3>
@@ -454,6 +455,7 @@
                         <span>🥩 ${prot}г</span>
                     </div>
                     <div class="recipe-card__actions">${actions}</div>
+                    ${author ? `<p class="recipe-card__author">${author}</p>` : ''}
                 </div>
             `}).join('');
         }

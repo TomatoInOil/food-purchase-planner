@@ -370,6 +370,12 @@ textarea {
     margin-top: 15px;
 }
 
+.recipe-card__author {
+    margin-top: 10px;
+    font-size: 0.85em;
+    color: var(--muted);
+}
+
 .recipe-meta {
     display: flex;
     gap: 15px;

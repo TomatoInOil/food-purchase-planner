@@ -49,6 +49,7 @@ def _recipe_to_dict(recipe, is_owner):
         "total_carbs": recipe.total_carbs or 0,
         "is_owner": is_owner,
         "ingredients": ingredients,
+        "author_username": recipe.user.username if recipe.user_id else "",
     }
 
 
@@ -137,9 +138,9 @@ def recipe_list_or_create(request):
 
 
 def _recipe_list(request):
-    recipes = Recipe.objects.prefetch_related("recipe_ingredients__ingredient").order_by(
-        "name"
-    )
+    recipes = Recipe.objects.select_related("user").prefetch_related(
+        "recipe_ingredients__ingredient"
+    ).order_by("name")
     data = [
         _recipe_to_dict(r, is_owner=(r.user_id == request.user.id)) for r in recipes
     ]
@@ -158,7 +159,7 @@ def recipe_detail_update_delete(request, pk):
 
 def _recipe_detail(request, pk):
     try:
-        recipe = Recipe.objects.prefetch_related(
+        recipe = Recipe.objects.select_related("user").prefetch_related(
             "recipe_ingredients__ingredient"
         ).get(pk=pk)
     except Recipe.DoesNotExist:
@@ -272,9 +273,9 @@ def _recipe_update(request, pk):
 
     return JsonResponse(
         _recipe_to_dict(
-            Recipe.objects.prefetch_related("recipe_ingredients__ingredient").get(
-                pk=recipe.pk
-            ),
+            Recipe.objects.select_related("user").prefetch_related(
+                "recipe_ingredients__ingredient"
+            ).get(pk=recipe.pk),
             is_owner=True,
         )
     )
