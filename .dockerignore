@@ -1,0 +1,16 @@
+.git/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.mypy_cache/
+.env
+.cursor/
+*.md
+db.sqlite3
+*.log
+tests/
+.pre-commit-config.yaml
