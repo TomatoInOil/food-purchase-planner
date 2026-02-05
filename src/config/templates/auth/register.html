@@ -28,7 +28,7 @@
                     <label for="id_username">Имя пользователя</label>
                     <input type="text" name="username" id="id_username" required autofocus
                            value="{{ form.username.value|default:'' }}"
-                           maxlength="150" placeholder="Имя пользователя">
+                           maxlength="150" placeholder="Имя пользователя" autocomplete="username">
                     {% if form.username.errors %}
                         <p class="field-error">{{ form.username.errors.0 }}</p>
                     {% endif %}
@@ -37,7 +37,7 @@
                     <label for="id_email">Email (необязательно)</label>
                     <input type="email" name="email" id="id_email"
                            value="{{ form.email.value|default:'' }}"
-                           placeholder="email@example.com">
+                           placeholder="email@example.com" autocomplete="email">
                     {% if form.email.errors %}
                         <p class="field-error">{{ form.email.errors.0 }}</p>
                     {% endif %}
@@ -45,7 +45,7 @@
                 <div class="form-group">
                     <label for="id_password1">Пароль</label>
                     <div class="password-wrap">
-                        <input type="password" name="password1" id="id_password1" required placeholder="Пароль">
+                        <input type="password" name="password1" id="id_password1" required placeholder="Пароль" autocomplete="new-password">
                         <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
                     </div>
                     {% if form.password1.errors %}
@@ -55,7 +55,7 @@
                 <div class="form-group">
                     <label for="id_password2">Подтверждение пароля</label>
                     <div class="password-wrap">
-                        <input type="password" name="password2" id="id_password2" required placeholder="Повторите пароль">
+                        <input type="password" name="password2" id="id_password2" required placeholder="Повторите пароль" autocomplete="new-password">
                         <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
                     </div>
                     {% if form.password2.errors %}

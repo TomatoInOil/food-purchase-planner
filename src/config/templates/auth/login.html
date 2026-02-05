@@ -28,7 +28,7 @@
                     <label for="id_username">Имя пользователя</label>
                     <input type="text" name="username" id="id_username" required autofocus
                            value="{{ form.username.value|default:'' }}"
-                           placeholder="Имя пользователя">
+                           placeholder="Имя пользователя" autocomplete="username">
                     {% if form.username.errors %}
                         <p class="field-error">{{ form.username.errors.0 }}</p>
                     {% endif %}
@@ -36,7 +36,7 @@
                 <div class="form-group">
                     <label for="id_password">Пароль</label>
                     <div class="password-wrap">
-                        <input type="password" name="password" id="id_password" required placeholder="Пароль">
+                        <input type="password" name="password" id="id_password" required placeholder="Пароль" autocomplete="current-password">
                         <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
                     </div>
                     {% if form.password.errors %}
