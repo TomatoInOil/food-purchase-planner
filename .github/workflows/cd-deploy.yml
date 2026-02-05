@@ -37,6 +37,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Copy deploy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VDS_SSH_HOST }}
+          username: ${{ secrets.VDS_SSH_USER }}
+          key: ${{ secrets.VDS_SSH_KEY }}
+          port: ${{ secrets.VDS_SSH_PORT }}
+          source: "deploy.sh,docker-compose.yml"
+          target: ${{ secrets.DEPLOY_WORKDIR }}
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         env:
