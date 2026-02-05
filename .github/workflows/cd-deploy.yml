@@ -107,8 +107,9 @@ jobs:
             trap 'rm -f .env' EXIT
 
             echo "Deploying..."
+            GHCR_IMAGE_LOWER=$(echo "$GHCR_IMAGE" | tr '[:upper:]' '[:lower:]')
             {
-              printf 'GHCR_IMAGE="%s"\n' "${GHCR_IMAGE//\"/\\\"}"
+              printf 'GHCR_IMAGE="%s"\n' "${GHCR_IMAGE_LOWER//\"/\\\"}"
               printf 'IMAGE_TAG="%s"\n' "${IMAGE_TAG//\"/\\\"}"
               printf 'SECRET_KEY="%s"\n' "${SECRET_KEY//\"/\\\"}"
               printf 'DEBUG=0\n'
