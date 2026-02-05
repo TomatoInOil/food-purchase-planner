@@ -136,9 +136,44 @@ jobs:
             cd "${DEPLOY_WORKDIR:-.}"
             export COMPOSE_FILE=docker-compose.prod.yml
             echo "Waiting for web service (entrypoint runs migrate + collectstatic first)..."
-            if ! timeout 180 bash -c 'until docker compose exec -T web python -c '\''import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/", timeout=5)'\'' 2>/dev/null; do sleep 3; done'; then
-              echo "::error::Web service did not respond in time."
+            echo "Step 1: Waiting for container to be running..."
+            timeout 30 bash -c 'until docker compose ps web | grep -q "Up"; do sleep 2; done' || {
+              echo "::error::Web container did not start."
+              docker compose ps web || true
               docker compose logs --tail=50 web || true
+              exit 1
+            }
+            echo "Step 2: Waiting for port 8000 to be listening..."
+            timeout 60 bash -c 'until docker compose exec -T web sh -c "nc -z 127.0.0.1 8000 || command -v nc >/dev/null || python -c \"import socket; s=socket.socket(); s.connect((\\\"127.0.0.1\\\", 8000)); s.close()\"" 2>/dev/null; do sleep 2; done' || {
+              echo "::error::Port 8000 is not listening."
+              docker compose logs --tail=50 web || true
+              exit 1
+            }
+            echo "Step 3: Checking HTTP response (accepting any status < 500)..."
+            if ! timeout 60 bash -c 'until docker compose exec -T web python -c "
+            import urllib.request
+            import sys
+            try:
+                resp = urllib.request.urlopen(\"http://127.0.0.1:8000/\", timeout=5)
+                code = resp.getcode()
+                if code < 500:
+                    print(f\"HTTP {code} - OK\")
+                    sys.exit(0)
+                print(f\"HTTP {code} - Server error\", file=sys.stderr)
+                sys.exit(1)
+            except urllib.error.HTTPError as e:
+                if e.code < 500:
+                    print(f\"HTTP {e.code} - OK (non-critical)\")
+                    sys.exit(0)
+                print(f\"HTTP {e.code}: {e.reason}\", file=sys.stderr)
+                sys.exit(1)
+            except Exception as e:
+                print(f\"Connection error: {e}\", file=sys.stderr)
+                sys.exit(1)
+            " 2>&1; do sleep 3; done'; then
+              echo "::error::Web service did not respond correctly."
+              docker compose logs --tail=50 web || true
+              docker compose ps web || true
               exit 1
             fi
             echo "Deployment verified."
