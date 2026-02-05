@@ -86,7 +86,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           DEPLOY_WORKDIR: ${{ env.DEPLOY_WORKDIR }}
-          GHCR_IMAGE: ghcr.io/${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           GHCR_USER: ${{ env.GHCR_USER }}
           GHCR_TOKEN: ${{ env.GHCR_TOKEN }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -99,7 +99,7 @@ jobs:
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GHCR_IMAGE,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
@@ -107,9 +107,10 @@ jobs:
             trap 'rm -f .env' EXIT
 
             echo "Deploying..."
-            GHCR_IMAGE_LOWER=$(echo "$GHCR_IMAGE" | tr '[:upper:]' '[:lower:]')
+            GHCR_IMAGE=$(echo "ghcr.io/$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+            export GHCR_IMAGE
             {
-              printf 'GHCR_IMAGE="%s"\n' "${GHCR_IMAGE_LOWER//\"/\\\"}"
+              printf 'GHCR_IMAGE="%s"\n' "${GHCR_IMAGE//\"/\\\"}"
               printf 'IMAGE_TAG="%s"\n' "${IMAGE_TAG//\"/\\\"}"
               printf 'SECRET_KEY="%s"\n' "${SECRET_KEY//\"/\\\"}"
               printf 'DEBUG=0\n'

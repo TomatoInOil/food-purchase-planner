@@ -18,6 +18,7 @@ elif [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ] && [ ! -f "
 fi
 
 export IMAGE_TAG
+export GHCR_IMAGE
 
 if [ -n "${GHCR_USER:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
   echo "Logging in to ghcr.io..."
