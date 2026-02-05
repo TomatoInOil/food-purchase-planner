@@ -19,6 +19,7 @@ jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: read
@@ -37,14 +38,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Warn on manual deploy with default tag
+        if: github.event_name == 'workflow_dispatch' && (inputs.image_tag == '' || inputs.image_tag == 'latest')
+        run: echo "::warning::Manual deploy with tag 'latest'; ensure the build workflow succeeded."
+        continue-on-error: true
+
       - name: Validate deploy config
         run: |
-          if [ -z "$DEPLOY_WORKDIR" ]; then
-            echo "::error::DEPLOY_WORKDIR secret is not set. Add it in Settings → Secrets and variables → Actions."
+          MISSING=""
+          [ -z "$VDS_SSH_HOST" ] && MISSING="$MISSING VDS_SSH_HOST"
+          [ -z "$VDS_SSH_USER" ] && MISSING="$MISSING VDS_SSH_USER"
+          [ -z "$VDS_SSH_KEY" ] && MISSING="$MISSING VDS_SSH_KEY"
+          [ -z "$DEPLOY_WORKDIR" ] && MISSING="$MISSING DEPLOY_WORKDIR"
+          [ -z "$POSTGRES_PASSWORD" ] && MISSING="$MISSING POSTGRES_PASSWORD"
+          [ -z "$SECRET_KEY" ] && MISSING="$MISSING SECRET_KEY"
+          [ -z "$ALLOWED_HOSTS" ] && MISSING="$MISSING ALLOWED_HOSTS"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Required secrets are not set:$MISSING Add them in Settings → Secrets and variables → Actions."
             exit 1
           fi
         env:
+          VDS_SSH_HOST: ${{ secrets.VDS_SSH_HOST }}
+          VDS_SSH_USER: ${{ secrets.VDS_SSH_USER }}
+          VDS_SSH_KEY: ${{ secrets.VDS_SSH_KEY }}
           DEPLOY_WORKDIR: ${{ secrets.DEPLOY_WORKDIR }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
+
+      - name: Check deploy files exist
+        run: |
+          test -f deploy.sh || (echo "::error::deploy.sh not found in repository." && exit 1)
+          test -f docker-compose.yml || (echo "::error::docker-compose.yml not found in repository." && exit 1)
 
       - name: Copy deploy files to server
         uses: appleboy/scp-action@v1
@@ -55,7 +80,6 @@ jobs:
           port: ${{ secrets.VDS_SSH_PORT }}
           source: "deploy.sh,docker-compose.yml"
           target: ${{ secrets.DEPLOY_WORKDIR }}
-          debug: true
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -64,18 +88,48 @@ jobs:
           DEPLOY_WORKDIR: ${{ env.DEPLOY_WORKDIR }}
           GHCR_USER: ${{ env.GHCR_USER }}
           GHCR_TOKEN: ${{ env.GHCR_TOKEN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GHCR_USER,GHCR_TOKEN
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
-
-            echo "Deploying image tag: ${IMAGE_TAG}"
-            echo "Working directory: ${WORKDIR}"
-
             cd "$WORKDIR"
+            trap 'rm -f .env' EXIT
+
+            echo "Deploying..."
+            {
+              printf 'SECRET_KEY="%s"\n' "${SECRET_KEY//\"/\\\"}"
+              printf 'DEBUG=0\n'
+              printf 'ALLOWED_HOSTS="%s"\n' "${ALLOWED_HOSTS//\"/\\\"}"
+              printf 'POSTGRES_USER="%s"\n' "${POSTGRES_USER:-planner}"
+              printf 'POSTGRES_PASSWORD="%s"\n' "${POSTGRES_PASSWORD//\"/\\\"}"
+              printf 'POSTGRES_DB="%s"\n' "${POSTGRES_DB:-planner}"
+            } > .env
+            chmod 600 .env
             bash deploy.sh "${IMAGE_TAG}"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_WORKDIR: ${{ secrets.DEPLOY_WORKDIR }}
+        with:
+          host: ${{ secrets.VDS_SSH_HOST }}
+          username: ${{ secrets.VDS_SSH_USER }}
+          key: ${{ secrets.VDS_SSH_KEY }}
+          port: ${{ secrets.VDS_SSH_PORT }}
+          envs: DEPLOY_WORKDIR
+          script: |
+            set -e
+            cd "${DEPLOY_WORKDIR:-.}"
+            echo "Waiting for web service..."
+            timeout 60 bash -c 'until docker compose exec -T web python -c '\''import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/", timeout=5)'\'' 2>/dev/null; do sleep 3; done' || (echo "::error::Web service did not respond in time." && exit 1)
+            echo "Deployment verified."

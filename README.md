@@ -48,3 +48,5 @@
 - (опционально) `VDS_SSH_PORT` — порт SSH, если отличается от `22`.
 - (опционально) `DEPLOY_WORKDIR` — рабочая директория на сервере, где лежит `docker-compose.yml` и скрипт `deploy.sh` (по умолчанию `.`).
 - (опционально, но рекомендуется для pull образов с приватного регистра) `GHCR_USER` и `GHCR_TOKEN` — учётные данные для `ghcr.io`. Если заданы, `deploy.sh` выполнит `docker login ghcr.io` перед `docker compose pull`.
+- **Обязательные для docker-compose:** `POSTGRES_PASSWORD`, `SECRET_KEY`, `ALLOWED_HOSTS`. В шаге «Deploy via SSH» на сервере формируется файл `.env` из этих секретов перед запуском `deploy.sh`; при отсутствии любого из них шаг «Validate deploy config» завершится с ошибкой. Для production задайте в `ALLOWED_HOSTS` ваш домен (не используйте localhost).
+- (опционально) `POSTGRES_USER`, `POSTGRES_DB` — подставляются в `.env` при деплое; по умолчанию используются значения из `.env.example`.
