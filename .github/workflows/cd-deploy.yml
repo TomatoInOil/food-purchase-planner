@@ -1,0 +1,57 @@
+name: CD - deploy via docker compose
+
+on:
+  workflow_run:
+    workflows: ["Build and publish Docker image"]
+    types:
+      - completed
+    branches:
+      - master
+
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Docker image tag to deploy (e.g. latest or sha-xxxxx)
+        required: false
+        default: latest
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+
+    env:
+      VDS_SSH_HOST: ${{ secrets.VDS_SSH_HOST }}
+      VDS_SSH_USER: ${{ secrets.VDS_SSH_USER }}
+      VDS_SSH_PORT: ${{ secrets.VDS_SSH_PORT }}
+      DEPLOY_WORKDIR: ${{ secrets.DEPLOY_WORKDIR }}
+      IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DEPLOY_WORKDIR: ${{ env.DEPLOY_WORKDIR }}
+        with:
+          host: ${{ secrets.VDS_SSH_HOST }}
+          username: ${{ secrets.VDS_SSH_USER }}
+          key: ${{ secrets.VDS_SSH_KEY }}
+          port: ${{ secrets.VDS_SSH_PORT }}
+          envs: IMAGE_TAG,DEPLOY_WORKDIR
+          script: |
+            set -e
+            WORKDIR="${DEPLOY_WORKDIR:-.}"
+
+            echo "Deploying image tag: ${IMAGE_TAG}"
+            echo "Working directory: ${WORKDIR}"
+
+            cd "$WORKDIR"
+            bash deploy.sh "${IMAGE_TAG}"

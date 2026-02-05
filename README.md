@@ -27,3 +27,24 @@
   - `docker compose exec web python manage.py planner_populate_default_ingredients`
   - `docker compose exec web python manage.py planner_populate_default_recipes`
 - **Перезапуск:** `docker compose restart web`; полная пересборка: `docker compose up -d --build`.
+
+## CI/CD (GitHub Actions)
+
+- **CI - lint & tests:** запускается на push/pull request в ветку `master`, проверяет код Ruff и mypy, запускает Django-тесты.
+- **Build and publish Docker image:** запускается автоматически после успешного `CI - lint & tests` для ветки `master`, собирает и публикует образ в `ghcr.io/${{ github.repository }}` с тегами `latest` (для `master`) и `sha-<commit_sha>`.
+- **CD - deploy via docker compose:** запускается
+  - автоматически по событию `workflow_run` после успешного `Build and publish Docker image` для ветки `master`;
+  - вручную через `workflow_dispatch` с параметром `image_tag` (по умолчанию `latest`).
+
+Деплой предполагает VDS с установленными `docker` и `docker compose`, а также клоном этого репозитория (директория на сервере передаётся через секрет `DEPLOY_WORKDIR`). Workflow через `appleboy/ssh-action` подключается по SSH и выполняет на сервере скрипт `./deploy.sh <IMAGE_TAG>`, внутри которого вызываются `docker compose pull` и `docker compose up -d`.
+
+### Секреты и переменные для деплоя
+
+В разделе **Settings → Secrets and variables → Actions** репозитория должны быть заданы:
+
+- `VDS_SSH_HOST` — хост VDS.
+- `VDS_SSH_USER` — пользователь для SSH-доступа.
+- `VDS_SSH_KEY` — приватный SSH-ключ (формат PEM), с доступом к указанному пользователю/серверу.
+- (опционально) `VDS_SSH_PORT` — порт SSH, если отличается от `22`.
+- (опционально) `DEPLOY_WORKDIR` — рабочая директория на сервере, где лежит `docker-compose.yml` и скрипт `deploy.sh` (по умолчанию `.`).
+- (опционально) `GHCR_*` — дополнительные учётные данные для `ghcr.io`, если вы решите логиниться на регистри из деплой-скрипта на сервере; текущая конфигурация исходит из того, что доступ к `ghcr.io` на сервере уже настроен.
