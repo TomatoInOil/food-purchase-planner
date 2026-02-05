@@ -37,6 +37,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Validate deploy config
+        run: |
+          if [ -z "$DEPLOY_WORKDIR" ]; then
+            echo "::error::DEPLOY_WORKDIR secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+        env:
+          DEPLOY_WORKDIR: ${{ secrets.DEPLOY_WORKDIR }}
+
       - name: Copy deploy files to server
         uses: appleboy/scp-action@v1
         with:
