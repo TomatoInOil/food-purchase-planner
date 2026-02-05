@@ -10,7 +10,9 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ] && [ ! -f "compose.yaml" ]; then
+if [ -f "docker-compose.prod.yml" ]; then
+  export COMPOSE_FILE=docker-compose.prod.yml
+elif [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ] && [ ! -f "compose.yaml" ]; then
   echo "docker compose file not found in current directory."
   exit 1
 fi
