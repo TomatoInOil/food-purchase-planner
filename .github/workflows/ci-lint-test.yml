@@ -12,9 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set Python version
+        run: echo "PYTHON_VERSION=$(cat .python-version | xargs)" >> $GITHUB_ENV
+
       - uses: astral-sh/setup-uv@v7
         with:
-          version-file: .python-version
+          python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
 
       - name: Install dependencies
@@ -31,9 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set Python version
+        run: echo "PYTHON_VERSION=$(cat .python-version | xargs)" >> $GITHUB_ENV
+
       - uses: astral-sh/setup-uv@v7
         with:
-          version-file: .python-version
+          python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
 
       - name: Install dependencies
