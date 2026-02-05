@@ -17,6 +17,11 @@ fi
 
 export IMAGE_TAG
 
+if [ -n "${GHCR_USER:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+  echo "Logging in to ghcr.io..."
+  echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+fi
+
 echo "Pulling images with docker compose..."
 docker compose pull
 

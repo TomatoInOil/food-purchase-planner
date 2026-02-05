@@ -30,6 +30,8 @@ jobs:
       VDS_SSH_PORT: ${{ secrets.VDS_SSH_PORT }}
       DEPLOY_WORKDIR: ${{ secrets.DEPLOY_WORKDIR }}
       IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+      GHCR_USER: ${{ secrets.GHCR_USER }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -40,12 +42,14 @@ jobs:
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           DEPLOY_WORKDIR: ${{ env.DEPLOY_WORKDIR }}
+          GHCR_USER: ${{ env.GHCR_USER }}
+          GHCR_TOKEN: ${{ env.GHCR_TOKEN }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GHCR_USER,GHCR_TOKEN
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
