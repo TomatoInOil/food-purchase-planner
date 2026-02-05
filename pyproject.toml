@@ -13,7 +13,16 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs>=5.2.9",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "ruff>=0.15.0",
 ]
+
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+mypy_path = "src"
+explicit_package_bases = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
