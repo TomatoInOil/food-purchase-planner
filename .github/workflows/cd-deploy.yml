@@ -104,7 +104,6 @@ jobs:
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
             cd "$WORKDIR"
-            trap 'rm -f .env' EXIT
 
             echo "Deploying..."
             GHCR_IMAGE=$(echo "ghcr.io/$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
@@ -136,6 +135,10 @@ jobs:
             set -e
             cd "${DEPLOY_WORKDIR:-.}"
             export COMPOSE_FILE=docker-compose.prod.yml
-            echo "Waiting for web service..."
-            timeout 60 bash -c 'until docker compose exec -T web python -c '\''import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/", timeout=5)'\'' 2>/dev/null; do sleep 3; done' || (echo "::error::Web service did not respond in time." && exit 1)
+            echo "Waiting for web service (entrypoint runs migrate + collectstatic first)..."
+            if ! timeout 180 bash -c 'until docker compose exec -T web python -c '\''import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/", timeout=5)'\'' 2>/dev/null; do sleep 3; done'; then
+              echo "::error::Web service did not respond in time."
+              docker compose logs --tail=50 web || true
+              exit 1
+            fi
             echo "Deployment verified."
