@@ -94,12 +94,13 @@ jobs:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
+          CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
@@ -114,6 +115,7 @@ jobs:
               printf 'SECRET_KEY="%s"\n' "${SECRET_KEY//\"/\\\"}"
               printf 'DEBUG=0\n'
               printf 'ALLOWED_HOSTS="%s"\n' "${ALLOWED_HOSTS//\"/\\\"}"
+              printf 'CSRF_TRUSTED_ORIGINS="%s"\n' "${CSRF_TRUSTED_ORIGINS//\"/\\\"}"
               printf 'POSTGRES_USER="%s"\n' "${POSTGRES_USER:-planner}"
               printf 'POSTGRES_PASSWORD="%s"\n' "${POSTGRES_PASSWORD//\"/\\\"}"
               printf 'POSTGRES_DB="%s"\n' "${POSTGRES_DB:-planner}"
