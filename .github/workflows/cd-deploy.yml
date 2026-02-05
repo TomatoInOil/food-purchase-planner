@@ -46,6 +46,7 @@ jobs:
           port: ${{ secrets.VDS_SSH_PORT }}
           source: "deploy.sh,docker-compose.yml"
           target: ${{ secrets.DEPLOY_WORKDIR }}
+          debug: true
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
