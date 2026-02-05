@@ -15,7 +15,7 @@ services:
 
   web:
     image: ${GHCR_IMAGE}:${IMAGE_TAG}
-    command: ["python", "-m", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+    command: ["python", "-m", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "60", "--graceful-timeout", "30"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-planner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
