@@ -1,13 +1,225 @@
 /**
- * Friends tab: friend request modal and placeholder actions.
+ * Friends tab: API-backed friends and requests management.
+ *
+ * High-level flows:
+ *  - loadFriendsTabData
+ *  - sendFriendRequestByCode
+ *  - handleFriendRequestAccept / handleFriendRequestDecline
+ *  - handleFriendRemove
  */
 
+let friends = [];
+let friendRequests = [];
+let currentFriendRequestId = null;
+let currentFriendRemoveId = null;
 let currentFriendRequestName = '';
+let currentFriendRemoveName = '';
+
+// High-level: load all data for the Friends tab.
+async function loadFriendsTabData() {
+    try {
+        const myCodeData = await apiFetch('/api/friends/my-code/');
+        const myCodeEl = document.getElementById('myCodeDisplay');
+        if (myCodeEl && myCodeData && typeof myCodeData.code === 'string') {
+            myCodeEl.textContent = myCodeData.code;
+        }
+
+        friends = await apiFetch('/api/friends/');
+        friendRequests = await apiFetch('/api/friend-requests/');
+
+        renderFriends();
+        renderFriendRequests();
+    } catch (e) {
+        showError(e.message || 'Не удалось загрузить данные друзей');
+    }
+}
+
+// High-level: send friend request using friend code.
+async function sendFriendRequestByCode() {
+    const input = document.getElementById('friendCodeInput');
+    const code = input ? input.value.trim() : '';
+
+    if (!code) {
+        showError('Введите код друга');
+        return;
+    }
+
+    try {
+        await apiFetch('/api/friends/send-request/', {
+            method: 'POST',
+            body: { code: code }
+        });
+        if (input) {
+            input.value = '';
+        }
+        showToast('Запрос в друзья отправлен');
+    } catch (e) {
+        showError(e.message || 'Не удалось отправить запрос в друзья');
+    }
+}
+
+// High-level: accept friend request from modal.
+async function handleFriendRequestAccept() {
+    const requestId = currentFriendRequestId;
+    if (!requestId) {
+        showError('Не выбран запрос в друзья');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/friend-requests/${requestId}/accept/`, {
+            method: 'POST'
+        });
+        showToast('Запрос в друзья принят');
+
+        friendRequests = await apiFetch('/api/friend-requests/');
+        friends = await apiFetch('/api/friends/');
+        renderFriendRequests();
+        renderFriends();
+    } catch (e) {
+        showError(e.message || 'Не удалось принять запрос в друзья');
+    } finally {
+        closeFriendModal();
+        currentFriendRequestId = null;
+    }
+}
+
+// High-level: decline friend request from modal.
+async function handleFriendRequestDecline() {
+    const requestId = currentFriendRequestId;
+    if (!requestId) {
+        showError('Не выбран запрос в друзья');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/friend-requests/${requestId}/decline/`, {
+            method: 'POST'
+        });
+        showToast('Запрос в друзья отклонён');
+
+        friendRequests = await apiFetch('/api/friend-requests/');
+        renderFriendRequests();
+    } catch (e) {
+        showError(e.message || 'Не удалось отклонить запрос в друзья');
+    } finally {
+        closeFriendModal();
+        currentFriendRequestId = null;
+    }
+}
+
+// High-level: remove friend from modal.
+async function handleFriendRemove() {
+    const userId = currentFriendRemoveId;
+    if (!userId) {
+        showError('Не выбран друг для удаления');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/friends/${userId}/remove/`, {
+            method: 'POST'
+        });
+        showToast('Друг удалён');
+
+        friends = await apiFetch('/api/friends/');
+        renderFriends();
+    } catch (e) {
+        showError(e.message || 'Не удалось удалить друга');
+    } finally {
+        closeFriendRemoveModal();
+        currentFriendRemoveId = null;
+    }
+}
+
+// Medium-level: render friends list.
+function renderFriends() {
+    const listEl = document.getElementById('friendsList');
+    if (!listEl) {
+        return;
+    }
+
+    listEl.innerHTML = '';
+
+    if (!friends || friends.length === 0) {
+        return;
+    }
+
+    friends.forEach((friend) => {
+        const li = document.createElement('li');
+        li.className = 'friend-item';
+        li.textContent = friend.username || '';
+        if (friend.user_id !== undefined && friend.user_id !== null) {
+            li.dataset.userId = String(friend.user_id);
+        }
+        if (friend.username) {
+            li.dataset.friendName = friend.username;
+        }
+        li.onclick = function () {
+            openFriendRemoveFromList(friend);
+        };
+        listEl.appendChild(li);
+    });
+}
+
+// Medium-level: render incoming friend requests.
+function renderFriendRequests() {
+    const listEl = document.getElementById('friendRequestsList');
+    if (!listEl) {
+        return;
+    }
+
+    listEl.innerHTML = '';
+
+    if (!friendRequests || friendRequests.length === 0) {
+        return;
+    }
+
+    friendRequests.forEach((req) => {
+        const li = document.createElement('li');
+        li.className = 'friend-item';
+        li.textContent = req.from_username || '';
+        if (req.id !== undefined && req.id !== null) {
+            li.dataset.requestId = String(req.id);
+        }
+        if (req.from_username) {
+            li.dataset.fromUsername = req.from_username;
+        }
+        li.onclick = function () {
+            openFriendRequestFromList(req);
+        };
+        listEl.appendChild(li);
+    });
+}
+
+// Medium-level: open request modal from list item.
+function openFriendRequestFromList(req) {
+    if (!req) {
+        return;
+    }
+    currentFriendRequestId = req.id;
+    currentFriendRequestName = req.from_username || '';
+    openFriendRequestModal(currentFriendRequestName);
+}
+
+// Medium-level: open remove friend modal from list item.
+function openFriendRemoveFromList(friend) {
+    if (!friend) {
+        return;
+    }
+    currentFriendRemoveId = friend.user_id;
+    currentFriendRemoveName = friend.username || '';
+    openFriendRemoveModal(currentFriendRemoveName);
+}
+
+// Low-level: copy code helpers and modal UI.
 
 function copyMyCode() {
     const el = document.getElementById('myCodeDisplay');
     const code = (el && el.textContent) ? el.textContent.trim() : '';
-    if (!code) return;
+    if (!code) {
+        return;
+    }
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(() => {
             showToast('Код скопирован');
@@ -41,39 +253,40 @@ function copyMyCodeFallback(text) {
 
 function openFriendRequestModal(userDisplayName) {
     currentFriendRequestName = userDisplayName;
-    document.getElementById('modalFriendTitle').textContent = userDisplayName || 'Запрос в друзья';
-    document.getElementById('friendModal').classList.add('active');
+    const titleEl = document.getElementById('modalFriendTitle');
+    const modalEl = document.getElementById('friendModal');
+    if (titleEl) {
+        titleEl.textContent = userDisplayName || 'Запрос в друзья';
+    }
+    if (modalEl) {
+        modalEl.classList.add('active');
+    }
 }
 
 function closeFriendModal() {
-    document.getElementById('friendModal').classList.remove('active');
+    const modalEl = document.getElementById('friendModal');
+    if (modalEl) {
+        modalEl.classList.remove('active');
+    }
     currentFriendRequestName = '';
 }
 
-function handleFriendRequestAccept() {
-    closeFriendModal();
-    showError('Запрос принят');
-}
-
-function handleFriendRequestDecline() {
-    closeFriendModal();
-    showError('Запрос отклонён');
-}
-
-let currentFriendRemoveName = '';
-
 function openFriendRemoveModal(friendDisplayName) {
     currentFriendRemoveName = friendDisplayName;
-    document.getElementById('modalFriendRemoveTitle').textContent = friendDisplayName || 'Друг';
-    document.getElementById('friendRemoveModal').classList.add('active');
+    const titleEl = document.getElementById('modalFriendRemoveTitle');
+    const modalEl = document.getElementById('friendRemoveModal');
+    if (titleEl) {
+        titleEl.textContent = friendDisplayName || 'Друг';
+    }
+    if (modalEl) {
+        modalEl.classList.add('active');
+    }
 }
 
 function closeFriendRemoveModal() {
-    document.getElementById('friendRemoveModal').classList.remove('active');
+    const modalEl = document.getElementById('friendRemoveModal');
+    if (modalEl) {
+        modalEl.classList.remove('active');
+    }
     currentFriendRemoveName = '';
-}
-
-function handleFriendRemove() {
-    closeFriendRemoveModal();
-    showError('Друг удалён');
 }

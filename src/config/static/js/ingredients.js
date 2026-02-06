@@ -56,6 +56,7 @@ async function deleteIngredient(ingredientId) {
         await apiFetch(`/api/ingredients/${ingredientId}/`, { method: 'DELETE' });
         ingredients = await apiFetch('/api/ingredients/');
         renderIngredients();
+        showToast('Ингредиент удалён');
     } catch (e) {
         showError(e.message || 'Ошибка удаления ингредиента');
     }

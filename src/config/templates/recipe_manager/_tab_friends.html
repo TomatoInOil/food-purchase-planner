@@ -8,21 +8,16 @@
         </div>
         <div class="form-group">
             <label>Код друга</label>
-            <input type="text" placeholder="Введите код">
+            <input id="friendCodeInput" type="text" placeholder="Введите код">
         </div>
-        <button class="btn btn-primary">Отправить запрос</button>
+        <button id="friendSendButton" class="btn btn-primary" onclick="sendFriendRequestByCode()">Отправить запрос</button>
     </div>
     <div class="card">
         <h2 class="card-title">Друзья</h2>
-        <ul class="friend-list">
-            <li class="friend-item" onclick="openFriendRemoveModal('Друг 1')">Друг 1</li>
-            <li class="friend-item" onclick="openFriendRemoveModal('Друг 2')">Друг 2</li>
-        </ul>
+        <ul id="friendsList" class="friend-list"></ul>
     </div>
     <div class="card">
         <h2 class="card-title">Запросы в друзья</h2>
-        <ul class="friend-list">
-            <li class="friend-item" data-role="request" onclick="openFriendRequestModal('Пользователь X')">Пользователь X</li>
-        </ul>
+        <ul id="friendRequestsList" class="friend-list"></ul>
     </div>
 </div>

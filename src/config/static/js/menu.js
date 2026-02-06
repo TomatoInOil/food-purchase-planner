@@ -91,7 +91,7 @@ async function saveWeekMenu() {
     updateWeekMenu();
     try {
         await apiFetch('/api/menu/', { method: 'PUT', body: weekMenu });
-        showError('Меню на неделю сохранено!');
+        showToast('Меню на неделю сохранено');
     } catch (e) {
         showError(e.message || 'Ошибка сохранения меню');
     }

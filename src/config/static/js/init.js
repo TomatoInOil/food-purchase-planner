@@ -17,6 +17,7 @@ async function init() {
         generateWeekPlanner();
         addIngredientRow();
         setDefaultShoppingDates();
+        await loadFriendsTabData();
     } catch (e) {
         showError(e.message || 'Ошибка загрузки данных');
     }
