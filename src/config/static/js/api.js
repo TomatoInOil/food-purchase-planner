@@ -31,3 +31,23 @@ async function apiFetch(url, options = {}) {
 function showError(msg) {
     alert(msg);
 }
+
+function showToast(msg, durationMs) {
+    durationMs = durationMs ?? 2500;
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('toast-show'));
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        setTimeout(() => toast.remove(), 300);
+    }, durationMs);
+}

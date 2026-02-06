@@ -1,0 +1,28 @@
+<div id="friends" class="tab-content">
+    <div class="card">
+        <h2 class="card-title">Добавление в друзья</h2>
+        <div class="form-group">
+            <label>Мой код</label>
+            <p class="form-help">Поделитесь этим кодом с другом — он введёт его в поле ниже и отправит вам запрос в друзья.</p>
+            <div id="myCodeDisplay" class="my-code-display" onclick="copyMyCode()" title="Нажмите, чтобы скопировать">ABC123</div>
+        </div>
+        <div class="form-group">
+            <label>Код друга</label>
+            <input type="text" placeholder="Введите код">
+        </div>
+        <button class="btn btn-primary">Отправить запрос</button>
+    </div>
+    <div class="card">
+        <h2 class="card-title">Друзья</h2>
+        <ul class="friend-list">
+            <li class="friend-item" onclick="openFriendRemoveModal('Друг 1')">Друг 1</li>
+            <li class="friend-item" onclick="openFriendRemoveModal('Друг 2')">Друг 2</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h2 class="card-title">Запросы в друзья</h2>
+        <ul class="friend-list">
+            <li class="friend-item" data-role="request" onclick="openFriendRequestModal('Пользователь X')">Пользователь X</li>
+        </ul>
+    </div>
+</div>

@@ -1,0 +1,15 @@
+<div id="friendModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalFriendTitle">Запрос в друзья</h2>
+            <button class="close-modal" onclick="closeFriendModal()">&times;</button>
+        </div>
+        <div id="modalFriendContent">
+            <p class="form-help modal-help">Примите запрос, чтобы добавить пользователя в друзья, или отклоните его.</p>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="handleFriendRequestAccept()">Принять</button>
+                <button class="btn btn-danger" onclick="handleFriendRequestDecline()">Отклонить</button>
+            </div>
+        </div>
+    </div>
+</div>

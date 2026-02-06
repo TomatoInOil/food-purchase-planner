@@ -205,6 +205,12 @@ h1 {
     margin-bottom: 0;
 }
 
+.form-help {
+    font-size: 0.9em;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
 .form-errors,
 .field-error {
     color: var(--danger);
@@ -670,6 +676,73 @@ textarea {
 
 .modal-section p {
     white-space: pre-wrap;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.modal-actions--end {
+    justify-content: flex-end;
+}
+
+.friend-list {
+    list-style: none;
+}
+
+.friend-item {
+    padding: 10px 0;
+    cursor: pointer;
+}
+
+.friend-item:hover {
+    color: var(--secondary);
+}
+
+.my-code-display {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    padding: 12px 16px;
+    background: var(--bg-light);
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.my-code-display:hover {
+    background: var(--light);
+}
+
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 12px 24px;
+    background: var(--dark);
+    color: var(--white);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    font-size: 0.95em;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast.toast-show {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 @media (max-width: 768px) {
