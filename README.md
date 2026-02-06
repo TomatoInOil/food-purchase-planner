@@ -39,7 +39,7 @@
 ## CI/CD (GitHub Actions)
 
 - **CI - lint & tests:** запускается на push/pull request в ветку `master`, проверяет код Ruff и mypy, запускает Django-тесты.
-- **Build and publish Docker image:** запускается автоматически после успешного `CI - lint & tests` для ветки `master`, собирает и публикует образ в `ghcr.io/${{ github.repository }}` с тегами `latest` (для `master`) и `sha-<commit_sha>`.
+- **Build and publish Docker image:** запускается автоматически после успешного `CI - lint & tests` для ветки `master`, собирает и публикует образ в `ghcr.io/${{ github.repository }}` с тегами `latest` (меню `master`) и `sha-<commit_sha>`.
 - **CD - deploy via docker compose:** запускается
   - автоматически по событию `workflow_run` после успешного `Build and publish Docker image` для ветки `master`;
   - вручную через `workflow_dispatch` с параметром `image_tag` (по умолчанию `latest`).

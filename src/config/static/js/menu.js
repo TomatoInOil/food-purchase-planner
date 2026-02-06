@@ -22,10 +22,10 @@ function updateShoppingOwnerLabel() {
     const label = document.getElementById('shoppingOwnerLabel');
     if (!label) return;
     if (currentMenuOwnerId === null) {
-        label.textContent = '(для меня)';
+        label.textContent = '(моё)';
     } else {
         const friend = friends.find((f) => f.user_id === currentMenuOwnerId);
-        label.textContent = friend ? `(для ${friend.username})` : '(для друга)';
+        label.textContent = friend ? `(меню ${friend.username})` : '(меню друга)';
     }
 }
 
