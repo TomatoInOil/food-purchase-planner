@@ -66,12 +66,10 @@ function updateSaveClearButtonsState() {
     const clearBtn = document.getElementById('clear-menu-btn');
     const isReadOnly = currentMenuOwnerId !== null;
     if (saveBtn) {
-        saveBtn.disabled = isReadOnly;
-        saveBtn.title = isReadOnly ? 'Меню друга нельзя изменять' : 'Сохранить меню';
+        saveBtn.style.display = isReadOnly ? 'none' : '';
     }
     if (clearBtn) {
-        clearBtn.disabled = isReadOnly;
-        clearBtn.title = isReadOnly ? 'Меню друга нельзя изменять' : 'Очистить меню';
+        clearBtn.style.display = isReadOnly ? 'none' : '';
     }
 }
 
