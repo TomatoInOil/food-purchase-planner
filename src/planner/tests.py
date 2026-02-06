@@ -491,3 +491,92 @@ class FriendsApiTests(ApiTestBase):
         response_err = self.client.post(f"/api/friends/{other.id}/remove/")
         self.assertEqual(response_err.status_code, 400)
         self.assertIn("error", response_err.json())
+
+    def test_friend_menu_returns_menu_and_recipes_when_friends(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        recipe = Recipe.objects.create(
+            user=other, name="Friend Soup", description="", instructions=""
+        )
+        MenuSlot.objects.create(user=other, day_of_week=0, meal_type=0, recipe=recipe)
+
+        response = self.client.get(f"/api/friends/{other.id}/menu/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("menu", data)
+        self.assertIn("recipes", data)
+        self.assertEqual(data["menu"]["0-0"], recipe.id)
+        self.assertEqual(len(data["recipes"]), 1)
+        self.assertEqual(data["recipes"][0]["id"], recipe.id)
+        self.assertEqual(data["recipes"][0]["name"], "Friend Soup")
+
+    def test_friend_menu_400_when_not_friends(self):
+        other = User.objects.create_user(
+            username="stranger", password="pass", email="stranger@example.com"
+        )
+
+        response = self.client.get(f"/api/friends/{other.id}/menu/")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_friend_shopping_list_returns_same_format_as_own_when_friends(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        recipe = Recipe.objects.create(
+            user=other, name="R", description="", instructions=""
+        )
+        ing = Ingredient.objects.create(
+            user=other, name="FriendTomato", calories=18, protein=1, fat=0, carbs=4
+        )
+        RecipeIngredient.objects.create(recipe=recipe, ingredient=ing, weight_grams=100)
+        start = date.today()
+        end = start + timedelta(days=1)
+        MenuSlot.objects.create(
+            user=other, day_of_week=start.weekday(), meal_type=0, recipe=recipe
+        )
+
+        response = self.client.post(
+            f"/api/friends/{other.id}/shopping-list/",
+            data={
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "people_count": 2,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["name"], "FriendTomato")
+        self.assertEqual(data[0]["weight_grams"], 200)
+
+    def test_friend_shopping_list_400_when_not_friends(self):
+        other = User.objects.create_user(
+            username="stranger", password="pass", email="stranger@example.com"
+        )
+        start = date.today()
+        end = start + timedelta(days=1)
+
+        response = self.client.post(
+            f"/api/friends/{other.id}/shopping-list/",
+            data={
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())

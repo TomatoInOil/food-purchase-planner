@@ -16,8 +16,12 @@ async function generateShoppingList() {
         return;
     }
 
+    const url = currentMenuOwnerId === null
+        ? '/api/shopping-list/'
+        : `/api/friends/${currentMenuOwnerId}/shopping-list/`;
+
     try {
-        const items = await apiFetch('/api/shopping-list/', {
+        const items = await apiFetch(url, {
             method: 'POST',
             body: { start_date: startDate, end_date: endDate, people_count: peopleCount }
         });

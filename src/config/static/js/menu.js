@@ -2,6 +2,79 @@
  * Weekly menu planner: generation, update, save, clear.
  */
 
+function populateMenuOwnerSelect() {
+    const select = document.getElementById('menuOwnerSelect');
+    if (!select) return;
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+    if (friends && friends.length > 0) {
+        friends.forEach((f) => {
+            const opt = document.createElement('option');
+            opt.value = String(f.user_id);
+            opt.textContent = f.username || '';
+            select.appendChild(opt);
+        });
+    }
+}
+
+function updateShoppingOwnerLabel() {
+    const label = document.getElementById('shoppingOwnerLabel');
+    if (!label) return;
+    if (currentMenuOwnerId === null) {
+        label.textContent = '(для меня)';
+    } else {
+        const friend = friends.find((f) => f.user_id === currentMenuOwnerId);
+        label.textContent = friend ? `(для ${friend.username})` : '(для друга)';
+    }
+}
+
+function handleMenuOwnerChange() {
+    const select = document.getElementById('menuOwnerSelect');
+    if (!select) return;
+    const value = select.value;
+    if (!value) {
+        currentMenuOwnerId = null;
+        friendMenuRecipes = [];
+        apiFetch('/api/menu/').then((menuData) => {
+            weekMenu = menuData;
+            generateWeekPlanner();
+            updateShoppingOwnerLabel();
+            updateSaveClearButtonsState();
+        }).catch((e) => {
+            showError(e.message || 'Ошибка загрузки меню');
+        });
+        return;
+    }
+    const friendId = parseInt(value, 10);
+    currentMenuOwnerId = friendId;
+    apiFetch(`/api/friends/${friendId}/menu/`).then((response) => {
+        weekMenu = response.menu || {};
+        friendMenuRecipes = response.recipes || [];
+        generateWeekPlanner();
+        updateShoppingOwnerLabel();
+        updateSaveClearButtonsState();
+    }).catch((e) => {
+        showError(e.message || 'Ошибка загрузки меню друга');
+        currentMenuOwnerId = null;
+        friendMenuRecipes = [];
+    });
+}
+
+function updateSaveClearButtonsState() {
+    const saveBtn = document.querySelector('.card-actions .btn-primary');
+    const clearBtn = document.getElementById('clear-menu-btn');
+    const isReadOnly = currentMenuOwnerId !== null;
+    if (saveBtn) {
+        saveBtn.disabled = isReadOnly;
+        saveBtn.title = isReadOnly ? 'Меню друга нельзя изменять' : 'Сохранить меню';
+    }
+    if (clearBtn) {
+        clearBtn.disabled = isReadOnly;
+        clearBtn.title = isReadOnly ? 'Меню друга нельзя изменять' : 'Очистить меню';
+    }
+}
+
 function setDefaultShoppingDates() {
     const start = document.getElementById('shoppingStartDate');
     const end = document.getElementById('shoppingEndDate');
@@ -16,12 +89,17 @@ function setDefaultShoppingDates() {
     }
 }
 
+function getRecipeSource() {
+    return currentMenuOwnerId !== null ? friendMenuRecipes : recipes;
+}
+
 function getDayNutritionTotals(dayIndex) {
+    const source = getRecipeSource();
     let calories = 0, protein = 0, fat = 0, carbs = 0;
     for (let m = 0; m < 4; m++) {
         const recipeId = weekMenu[`${dayIndex}-${m}`];
         if (!recipeId) continue;
-        const r = recipes.find(x => x.id === recipeId);
+        const r = source.find(x => x.id === recipeId);
         if (r) {
             calories += r.total_calories || 0;
             protein += r.total_protein || 0;
@@ -45,6 +123,8 @@ function generateWeekPlanner() {
     const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
     const meals = ['Завтрак', 'Обед', 'Перекус', 'Ужин'];
     const container = document.getElementById('weekPlanner');
+    const isReadOnly = currentMenuOwnerId !== null;
+    const recipeSource = getRecipeSource();
 
     container.innerHTML = days.map((day, dayIndex) => {
         const totals = getDayNutritionTotals(dayIndex);
@@ -54,12 +134,13 @@ function generateWeekPlanner() {
             ${meals.map((meal, mealIndex) => {
                 const key = `${dayIndex}-${mealIndex}`;
                 const slotVal = weekMenu[key];
+                const selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenu()"';
                 return `
                 <div class="meal-slot">
                     <h4>${meal}</h4>
-                    <select data-day="${dayIndex}" data-meal="${mealIndex}" onchange="updateWeekMenu()">
+                    <select data-day="${dayIndex}" data-meal="${mealIndex}" ${selectAttrs}>
                         <option value="">Не выбрано</option>
-                        ${recipes.map(r => `
+                        ${recipeSource.map(r => `
                             <option value="${r.id}" ${slotVal == r.id ? 'selected' : ''}>${r.name}</option>
                         `).join('')}
                     </select>
@@ -68,6 +149,7 @@ function generateWeekPlanner() {
             <div class="day-summary" data-day-index="${dayIndex}">${formatDaySummary(totals)}</div>
         </div>
     `}).join('');
+    updateSaveClearButtonsState();
 }
 
 function updateWeekMenu() {
@@ -88,6 +170,10 @@ function updateWeekMenu() {
 }
 
 async function saveWeekMenu() {
+    if (currentMenuOwnerId !== null) {
+        showError('Нельзя изменять меню друга');
+        return;
+    }
     updateWeekMenu();
     try {
         await apiFetch('/api/menu/', { method: 'PUT', body: weekMenu });
@@ -98,6 +184,10 @@ async function saveWeekMenu() {
 }
 
 async function clearWeekMenu() {
+    if (currentMenuOwnerId !== null) {
+        showError('Нельзя изменять меню друга');
+        return;
+    }
     if (!confirm('Очистить все меню?')) return;
     weekMenu = {};
     for (let d = 0; d < 7; d++) {

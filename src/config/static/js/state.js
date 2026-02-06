@@ -6,3 +6,5 @@ let recipes = [];
 let ingredients = [];
 let weekMenu = {};
 let editingRecipeId = null;
+let currentMenuOwnerId = null;
+let friendMenuRecipes = [];

@@ -18,6 +18,12 @@ async function init() {
         addIngredientRow();
         setDefaultShoppingDates();
         await loadFriendsTabData();
+        if (typeof populateMenuOwnerSelect === 'function') {
+            populateMenuOwnerSelect();
+        }
+        if (typeof updateShoppingOwnerLabel === 'function') {
+            updateShoppingOwnerLabel();
+        }
     } catch (e) {
         showError(e.message || 'Ошибка загрузки данных');
     }

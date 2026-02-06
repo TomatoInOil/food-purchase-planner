@@ -10,8 +10,10 @@ from planner.views_api import (
     ShoppingListView,
 )
 from planner.views_friends import (
+    FriendMenuView,
     FriendRemoveView,
     FriendRequestViewSet,
+    FriendShoppingListView,
     FriendsListView,
     MyFriendCodeView,
     SendFriendRequestView,
@@ -36,5 +38,15 @@ urlpatterns = [
         "friends/<int:user_id>/remove/",
         FriendRemoveView.as_view(),
         name="friends-remove",
+    ),
+    path(
+        "friends/<int:user_id>/menu/",
+        FriendMenuView.as_view(),
+        name="friend-menu",
+    ),
+    path(
+        "friends/<int:user_id>/shopping-list/",
+        FriendShoppingListView.as_view(),
+        name="friend-shopping-list",
     ),
 ] + router.urls

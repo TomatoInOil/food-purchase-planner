@@ -7,12 +7,15 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.models import FriendRequest, UserFriendCode
+from planner.models import FriendRequest, Recipe, UserFriendCode
 from planner.serializers import (
     FriendRequestSerializer,
     FriendSerializer,
+    ShoppingListRequestSerializer,
     UserFriendCodeSerializer,
 )
+from planner.services import calculate_shopping_list_for_user, get_menu_for_user
+from planner.services_friends import get_friend_user_or_404
 
 
 class MyFriendCodeView(APIView):
@@ -155,3 +158,35 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         serializer = self.get_serializer(friend_request)
         return Response(serializer.data)
+
+
+class FriendMenuView(APIView):
+    """Read-only view of a friend's weekly menu."""
+
+    def get(self, request, user_id):
+        friend_user = get_friend_user_or_404(request.user, user_id)
+        menu = get_menu_for_user(friend_user)
+        recipe_ids = {v for v in menu.values() if v is not None}
+        recipes_qs = Recipe.objects.filter(pk__in=recipe_ids)
+        recipes = [
+            {"id": r.id, "name": r.name, "total_calories": r.total_calories or 0}
+            for r in recipes_qs
+        ]
+        return Response({"menu": menu, "recipes": recipes})
+
+
+class FriendShoppingListView(APIView):
+    """Generate shopping list for a friend's menu."""
+
+    def post(self, request, user_id):
+        serializer = ShoppingListRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        friend_user = get_friend_user_or_404(request.user, user_id)
+        result = calculate_shopping_list_for_user(
+            friend_user,
+            data["start_date"],
+            data["end_date"],
+            data.get("people_count", 2),
+        )
+        return Response(result)

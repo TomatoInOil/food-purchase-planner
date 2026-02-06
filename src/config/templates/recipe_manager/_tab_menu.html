@@ -1,6 +1,12 @@
 <div id="menu" class="tab-content">
     <div class="card">
         <h2 class="card-title">Планирование меню на неделю</h2>
+        <div class="form-group menu-owner-select">
+            <label for="menuOwnerSelect">Меню для:</label>
+            <select id="menuOwnerSelect" onchange="handleMenuOwnerChange()">
+                <option value="">Моё меню</option>
+            </select>
+        </div>
         <div class="week-planner" id="weekPlanner">
         </div>
         <div class="card-actions">
@@ -9,7 +15,7 @@
         </div>
     </div>
     <div class="card">
-        <h2 class="card-title">Список покупок</h2>
+        <h2 class="card-title">Список покупок <span id="shoppingOwnerLabel">(для меня)</span></h2>
         <div class="date-range">
             <div class="form-group">
                 <label>От</label>

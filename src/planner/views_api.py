@@ -1,12 +1,11 @@
 """DRF ViewSets and API views for planner API."""
 
-from datetime import timedelta
-
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
+from planner.services import calculate_shopping_list_for_user
 from planner.permissions import IsOwnerOrReadOnly, is_system_ingredient
 from planner.serializers import (
     IngredientSerializer,
@@ -173,36 +172,10 @@ class ShoppingListView(APIView):
         serializer = ShoppingListRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        start_date = data["start_date"]
-        end_date = data["end_date"]
-        people_count = data.get("people_count", 2)
-        user = request.user
-        slots_by_day_meal = {
-            (s.day_of_week, s.meal_type): s.recipe_id
-            for s in MenuSlot.objects.filter(user=user)
-        }
-        aggregated = {}
-        current = start_date
-        while current <= end_date:
-            day_of_week = current.weekday()
-            for meal_type in range(4):
-                recipe_id = slots_by_day_meal.get((day_of_week, meal_type))
-                if not recipe_id:
-                    continue
-                for ri in RecipeIngredient.objects.filter(
-                    recipe_id=recipe_id
-                ).select_related("ingredient"):
-                    ing_id = ri.ingredient_id
-                    if ing_id not in aggregated:
-                        aggregated[ing_id] = {
-                            "name": ri.ingredient.name,
-                            "weight_grams": 0,
-                        }
-                    aggregated[ing_id]["weight_grams"] += ri.weight_grams
-            current += timedelta(days=1)
-        result = [
-            {"name": v["name"], "weight_grams": round(v["weight_grams"] * people_count)}
-            for v in aggregated.values()
-        ]
-        result.sort(key=lambda x: x["name"])
+        result = calculate_shopping_list_for_user(
+            request.user,
+            data["start_date"],
+            data["end_date"],
+            data.get("people_count", 2),
+        )
         return Response(result)
