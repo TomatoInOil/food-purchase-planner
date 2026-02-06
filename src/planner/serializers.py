@@ -186,7 +186,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 
 class RecipeCreateUpdateSerializer(RecipeSerializer):
-    ingredients = RecipeIngredientWriteSerializer(many=True)
+    ingredients = RecipeIngredientWriteSerializer(many=True)  # type: ignore[assignment]
 
     class Meta(RecipeSerializer.Meta):
         fields = RecipeSerializer.Meta.fields

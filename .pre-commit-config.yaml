@@ -26,4 +26,4 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
-        additional_dependencies: [django-stubs, django, djangorestframework, python-dotenv]
+        additional_dependencies: [django-stubs, django, djangorestframework, djangorestframework-stubs, python-dotenv]

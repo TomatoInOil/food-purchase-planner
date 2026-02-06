@@ -15,6 +15,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-stubs>=5.2.9",
+    "djangorestframework-stubs>=3.16.8",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
@@ -23,7 +24,7 @@ dev = [
 ]
 
 [tool.mypy]
-plugins = ["mypy_django_plugin.main"]
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 mypy_path = "src"
 explicit_package_bases = true
 
