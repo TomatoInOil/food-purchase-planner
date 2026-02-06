@@ -15,6 +15,9 @@ def api_exception_handler(exc, context):
     response = exception_handler(exc, context)
     if response is not None and response.status_code == 400:
         body = getattr(response, "data", None)
-        if isinstance(body, dict) and "error" not in body:
+        if isinstance(body, dict):
+            if "error" not in body:
+                response.data = {"error": _flatten_detail(body)}
+        else:
             response.data = {"error": _flatten_detail(body)}
     return response

@@ -1,0 +1,157 @@
+"""DRF views for friends and friend requests."""
+
+from django.db import models
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from planner.models import FriendRequest, UserFriendCode
+from planner.serializers import (
+    FriendRequestSerializer,
+    FriendSerializer,
+    UserFriendCodeSerializer,
+)
+
+
+class MyFriendCodeView(APIView):
+    """Return the current user's friend code, creating it lazily if needed."""
+
+    def get(self, request):
+        code_obj, _ = UserFriendCode.objects.get_or_create(user=request.user)
+        serializer = UserFriendCodeSerializer(code_obj)
+        return Response(serializer.data)
+
+
+class SendFriendRequestView(APIView):
+    """Send a friend request to a user identified by their friend code."""
+
+    def post(self, request):
+        code = (request.data or {}).get("code")
+        if not code:
+            raise ValidationError("Код обязателен")
+
+        try:
+            friend_code = UserFriendCode.objects.select_related("user").get(code=code)
+        except UserFriendCode.DoesNotExist:
+            raise ValidationError("Пользователь с таким кодом не найден")
+
+        to_user = friend_code.user
+        if to_user == request.user:
+            raise ValidationError("Нельзя отправить запрос самому себе")
+
+        already_friends = FriendRequest.objects.filter(
+            status=FriendRequest.STATUS_ACCEPTED
+        ).filter(
+            models.Q(from_user=request.user, to_user=to_user)
+            | models.Q(from_user=to_user, to_user=request.user)
+        )
+        if already_friends.exists():
+            raise ValidationError("Уже в друзьях")
+
+        friend_request = FriendRequest.objects.create(
+            from_user=request.user,
+            to_user=to_user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+        serializer = FriendRequestSerializer(friend_request)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class FriendsListView(APIView):
+    """Return the list of friends for the current user."""
+
+    def get(self, request):
+        qs = (
+            FriendRequest.objects.filter(status=FriendRequest.STATUS_ACCEPTED)
+            .filter(models.Q(from_user=request.user) | models.Q(to_user=request.user))
+            .select_related("from_user", "to_user")
+        )
+
+        friends = []
+        for fr in qs:
+            if fr.from_user_id == request.user.id:
+                other = fr.to_user
+            else:
+                other = fr.from_user
+            friends.append(
+                {
+                    "user_id": other.id,
+                    "username": other.username,
+                    "friend_request_id": fr.id,
+                    "since": fr.created_at,
+                }
+            )
+
+        serializer = FriendSerializer(friends, many=True)
+        return Response(serializer.data)
+
+
+class FriendRemoveView(APIView):
+    """Remove an existing friend relationship."""
+
+    def post(self, request, user_id):
+        qs = FriendRequest.objects.filter(status=FriendRequest.STATUS_ACCEPTED).filter(
+            models.Q(from_user=request.user, to_user_id=user_id)
+            | models.Q(from_user_id=user_id, to_user=request.user)
+        )
+        friend_request = qs.first()
+        if not friend_request:
+            raise ValidationError("Пользователь не является вашим другом")
+
+        friend_request.status = FriendRequest.STATUS_REMOVED
+        friend_request.save(update_fields=["status"])
+        return Response({"success": True})
+
+
+class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """ViewSet for incoming friend requests with accept/decline actions."""
+
+    queryset = FriendRequest.objects.all().select_related("from_user", "to_user")
+    serializer_class = FriendRequestSerializer
+
+    def get_queryset(self):
+        base_qs = super().get_queryset()
+        if self.action == "list":
+            return base_qs.filter(
+                to_user=self.request.user,
+                status=FriendRequest.STATUS_PENDING,
+            )
+        return base_qs
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        friend_request = self.get_object()
+        if friend_request.to_user_id != request.user.id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if friend_request.status != FriendRequest.STATUS_PENDING:
+            raise ValidationError("Некорректный статус запроса")
+
+        friend_request.status = FriendRequest.STATUS_ACCEPTED
+        friend_request.save(update_fields=["status"])
+
+        reverse_qs = FriendRequest.objects.filter(
+            from_user=friend_request.to_user,
+            to_user=friend_request.from_user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+        if reverse_qs.exists():
+            reverse_qs.update(status=FriendRequest.STATUS_CANCELLED)
+
+        serializer = self.get_serializer(friend_request)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def decline(self, request, pk=None):
+        friend_request = self.get_object()
+        if friend_request.to_user_id != request.user.id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if friend_request.status != FriendRequest.STATUS_PENDING:
+            raise ValidationError("Некорректный статус запроса")
+
+        friend_request.status = FriendRequest.STATUS_DECLINED
+        friend_request.save(update_fields=["status"])
+
+        serializer = self.get_serializer(friend_request)
+        return Response(serializer.data)

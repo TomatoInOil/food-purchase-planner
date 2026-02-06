@@ -4,7 +4,14 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
+from planner.models import (
+    FriendRequest,
+    Ingredient,
+    MenuSlot,
+    Recipe,
+    RecipeIngredient,
+    UserFriendCode,
+)
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -228,3 +235,57 @@ class ShoppingListRequestSerializer(serializers.Serializer):
                 "start_date must be before or equal to end_date"
             )
         return attrs
+
+
+class UserFriendCodeSerializer(serializers.ModelSerializer):
+    """Read-only serializer exposing the current user's friend code."""
+
+    class Meta:
+        model = UserFriendCode
+        fields = ["code"]
+        read_only_fields = ["code"]
+
+
+class FriendRequestSerializer(serializers.ModelSerializer):
+    """Serializer for friend request objects including user ids and usernames."""
+
+    from_user_id = serializers.IntegerField(source="from_user.id", read_only=True)
+    to_user_id = serializers.IntegerField(source="to_user.id", read_only=True)
+    from_username = serializers.SerializerMethodField()
+    to_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FriendRequest
+        fields = [
+            "id",
+            "from_user_id",
+            "to_user_id",
+            "from_username",
+            "to_username",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "from_user_id",
+            "to_user_id",
+            "from_username",
+            "to_username",
+            "status",
+            "created_at",
+        ]
+
+    def get_from_username(self, obj):
+        return obj.from_user.username
+
+    def get_to_username(self, obj):
+        return obj.to_user.username
+
+
+class FriendSerializer(serializers.Serializer):
+    """Serializer for derived friend objects built from accepted friend requests."""
+
+    user_id = serializers.IntegerField()
+    username = serializers.CharField()
+    friend_request_id = serializers.IntegerField()
+    since = serializers.DateTimeField()

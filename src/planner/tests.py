@@ -5,7 +5,14 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 
-from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
+from planner.models import (
+    FriendRequest,
+    Ingredient,
+    MenuSlot,
+    Recipe,
+    RecipeIngredient,
+    UserFriendCode,
+)
 
 User = get_user_model()
 
@@ -298,3 +305,189 @@ class ShoppingListApiTests(ApiTestBase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["name"], "Tomato")
         self.assertEqual(data[0]["weight_grams"], 200)
+
+
+class FriendsApiTests(ApiTestBase):
+    def test_my_code_creates_and_returns_same_code(self):
+        response1 = self.client.get("/api/friends/my-code/")
+        self.assertEqual(response1.status_code, 200)
+        data1 = response1.json()
+        self.assertIn("code", data1)
+        code1 = data1["code"]
+        self.assertTrue(
+            UserFriendCode.objects.filter(user=self.user, code=code1).exists()
+        )
+
+        response2 = self.client.get("/api/friends/my-code/")
+        self.assertEqual(response2.status_code, 200)
+        data2 = response2.json()
+        self.assertEqual(data2["code"], code1)
+
+    def test_send_request_creates_pending_request_by_code(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        code_obj = UserFriendCode.objects.create(user=other)
+
+        response = self.client.post(
+            "/api/friends/send-request/",
+            data={"code": code_obj.code},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["status"], FriendRequest.STATUS_PENDING)
+        self.assertEqual(data["from_user_id"], self.user.id)
+        self.assertEqual(data["to_user_id"], other.id)
+
+    def test_send_request_self_request_400(self):
+        code_obj = UserFriendCode.objects.create(user=self.user)
+        response = self.client.post(
+            "/api/friends/send-request/",
+            data={"code": code_obj.code},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_send_request_user_not_found_400(self):
+        response = self.client.post(
+            "/api/friends/send-request/",
+            data={"code": "UNKNOWN"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_send_request_already_friends_400(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        code_obj = UserFriendCode.objects.create(user=other)
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+
+        response = self.client.post(
+            "/api/friends/send-request/",
+            data={"code": code_obj.code},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_friend_requests_list_shows_incoming_pending_only(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        FriendRequest.objects.create(
+            from_user=other,
+            to_user=self.user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_PENDING,
+        )
+        FriendRequest.objects.create(
+            from_user=other,
+            to_user=self.user,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+
+        response = self.client.get("/api/friend-requests/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["from_user_id"], other.id)
+        self.assertEqual(data[0]["status"], FriendRequest.STATUS_PENDING)
+
+    def test_accept_request_marks_accepted_and_cancels_reverse_pending(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        incoming = FriendRequest.objects.create(
+            from_user=other,
+            to_user=self.user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+        reverse = FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_PENDING,
+        )
+
+        response = self.client.post(f"/api/friend-requests/{incoming.id}/accept/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], FriendRequest.STATUS_ACCEPTED)
+
+        incoming.refresh_from_db()
+        reverse.refresh_from_db()
+        self.assertEqual(incoming.status, FriendRequest.STATUS_ACCEPTED)
+        self.assertEqual(reverse.status, FriendRequest.STATUS_CANCELLED)
+
+    def test_decline_request_marks_declined(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        incoming = FriendRequest.objects.create(
+            from_user=other,
+            to_user=self.user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+
+        response = self.client.post(f"/api/friend-requests/{incoming.id}/decline/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], FriendRequest.STATUS_DECLINED)
+
+        incoming.refresh_from_db()
+        self.assertEqual(incoming.status, FriendRequest.STATUS_DECLINED)
+
+    def test_friends_list_returns_accepted_friends(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        accepted = FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        FriendRequest.objects.create(
+            from_user=other,
+            to_user=self.user,
+            status=FriendRequest.STATUS_PENDING,
+        )
+
+        response = self.client.get("/api/friends/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        friend = data[0]
+        self.assertEqual(friend["user_id"], other.id)
+        self.assertEqual(friend["username"], other.username)
+        self.assertEqual(friend["friend_request_id"], accepted.id)
+
+    def test_remove_friend_changes_status_to_removed_and_errors_if_not_friend(self):
+        other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        accepted = FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+
+        response_ok = self.client.post(f"/api/friends/{other.id}/remove/")
+        self.assertEqual(response_ok.status_code, 200)
+        self.assertEqual(response_ok.json(), {"success": True})
+        accepted.refresh_from_db()
+        self.assertEqual(accepted.status, FriendRequest.STATUS_REMOVED)
+
+        response_err = self.client.post(f"/api/friends/{other.id}/remove/")
+        self.assertEqual(response_err.status_code, 400)
+        self.assertIn("error", response_err.json())
