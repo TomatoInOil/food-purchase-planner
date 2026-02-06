@@ -5,6 +5,7 @@
 function populateMenuOwnerSelect() {
     const select = document.getElementById('menuOwnerSelect');
     if (!select) return;
+    const prevValue = select.value;
     while (select.options.length > 1) {
         select.remove(1);
     }
@@ -15,6 +16,11 @@ function populateMenuOwnerSelect() {
             opt.textContent = f.username || '';
             select.appendChild(opt);
         });
+    }
+    const validValues = ['', ...(friends || []).map((f) => String(f.user_id))];
+    if (prevValue && !validValues.includes(prevValue)) {
+        select.value = '';
+        handleMenuOwnerChange();
     }
 }
 

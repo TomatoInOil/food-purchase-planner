@@ -76,6 +76,12 @@ async function handleFriendRequestAccept() {
         friends = await apiFetch('/api/friends/');
         renderFriendRequests();
         renderFriends();
+        if (typeof populateMenuOwnerSelect === 'function') {
+            populateMenuOwnerSelect();
+        }
+        if (typeof updateShoppingOwnerLabel === 'function') {
+            updateShoppingOwnerLabel();
+        }
     } catch (e) {
         showError(e.message || 'Не удалось принять запрос в друзья');
     } finally {
@@ -124,6 +130,12 @@ async function handleFriendRemove() {
 
         friends = await apiFetch('/api/friends/');
         renderFriends();
+        if (typeof populateMenuOwnerSelect === 'function') {
+            populateMenuOwnerSelect();
+        }
+        if (typeof updateShoppingOwnerLabel === 'function') {
+            updateShoppingOwnerLabel();
+        }
     } catch (e) {
         showError(e.message || 'Не удалось удалить друга');
     } finally {
