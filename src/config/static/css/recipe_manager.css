@@ -503,10 +503,16 @@ textarea {
     }
 }
 
+.ingredient-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 20px;
+}
+
 .ingredient-table {
     width: 100%;
+    min-width: 600px;
     border-collapse: collapse;
-    margin-top: 20px;
 }
 
 .ingredient-table th,
@@ -520,6 +526,10 @@ textarea {
     background: var(--primary);
     color: var(--white);
     font-weight: 600;
+}
+
+.ingredient-table .th-short {
+    display: none;
 }
 
 .ingredient-table tbody tr:hover {
@@ -637,6 +647,14 @@ textarea {
 
     .date-range .btn {
         margin-right: 0;
+    }
+
+    .ingredient-table .th-full {
+        display: none;
+    }
+
+    .ingredient-table .th-short {
+        display: inline;
     }
 
     .form-actions .btn {

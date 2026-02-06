@@ -35,19 +35,21 @@
             <input type="text" placeholder="🔍 Поиск ингредиентов..." id="ingredientSearch" onkeyup="filterIngredients()">
         </div>
 
+        <div class="ingredient-table-wrapper">
         <table class="ingredient-table" id="ingredientTable">
             <thead>
                 <tr>
                     <th>Название</th>
-                    <th>Калории</th>
-                    <th>Белки (г)</th>
-                    <th>Жиры (г)</th>
-                    <th>Углеводы (г)</th>
+                    <th><span class="th-full">Ккал</span><span class="th-short">К</span></th>
+                    <th><span class="th-full">Белки, г</span><span class="th-short">Б</span></th>
+                    <th><span class="th-full">Жиры, г</span><span class="th-short">Ж</span></th>
+                    <th><span class="th-full">Углеводы, г</span><span class="th-short">У</span></th>
                     <th>Действия</th>
                 </tr>
             </thead>
             <tbody id="ingredientTableBody">
             </tbody>
         </table>
+        </div>
     </div>
 </div>
