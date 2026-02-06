@@ -489,6 +489,18 @@ textarea {
 .date-range .form-group {
     flex: 1;
     margin-bottom: 0;
+    min-width: 0;
+}
+
+.date-range .form-group input {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+@supports (-webkit-touch-callout: none) {
+    .date-range .form-group {
+        overflow: hidden;
+    }
 }
 
 .ingredient-table {
@@ -610,6 +622,21 @@ textarea {
         position: absolute;
         top: 30px;
         right: 30px;
+    }
+
+    .date-range {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .date-range .form-group {
+        flex: none;
+        margin-bottom: 15px;
+        min-width: 0;
+    }
+
+    .date-range .btn {
+        margin-right: 0;
     }
 
     .form-actions .btn {
