@@ -1,0 +1,56 @@
+<div id="create-recipe" class="tab-content">
+    <div class="card">
+        <h2 class="card-title">Создать новый рецепт</h2>
+        <form id="recipeForm" onsubmit="saveRecipe(event)">
+            <div class="form-group">
+                <label>Название рецепта</label>
+                <input type="text" name="recipeName" required placeholder="Например: Греческий салат">
+            </div>
+
+            <div class="form-group">
+                <label>Описание</label>
+                <textarea name="recipeDescription" placeholder="Краткое описание рецепта..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Инструкция по приготовлению</label>
+                <textarea name="recipeInstructions" placeholder="Опишите шаги приготовления..."></textarea>
+            </div>
+
+            <h3 class="form-section-title">Ингредиенты</h3>
+            <div id="ingredientsContainer">
+            </div>
+            <button type="button" class="btn btn-secondary btn-small" onclick="addIngredientRow()">
+                + Добавить ингредиент
+            </button>
+
+            <div class="nutrition-info" id="totalNutrition">
+                <div class="nutrition-card">
+                    <h4>Калории</h4>
+                    <div class="value" id="totalCalories">0</div>
+                    <small>ккал</small>
+                </div>
+                <div class="nutrition-card">
+                    <h4>Белки</h4>
+                    <div class="value" id="totalProtein">0</div>
+                    <small>г</small>
+                </div>
+                <div class="nutrition-card">
+                    <h4>Жиры</h4>
+                    <div class="value" id="totalFat">0</div>
+                    <small>г</small>
+                </div>
+                <div class="nutrition-card">
+                    <h4>Углеводы</h4>
+                    <div class="value" id="totalCarbs">0</div>
+                    <small>г</small>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">💾 Сохранить рецепт</button>
+                <button type="button" class="btn btn-secondary" onclick="clearRecipeForm()">🔄 Очистить</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,53 @@
+<div id="ingredients" class="tab-content">
+    <div class="card">
+        <h2 class="card-title">База ингредиентов</h2>
+
+        <div class="ingredient-form-section">
+            <h3>Добавить новый ингредиент</h3>
+            <form id="ingredientForm" onsubmit="saveIngredient(event)">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Название</label>
+                        <input type="text" name="ingredientName" required placeholder="Например: Куриная грудка">
+                    </div>
+                    <div class="form-group">
+                        <label>Калории (на 100г)</label>
+                        <input type="number" name="calories" step="0.1" required placeholder="165">
+                    </div>
+                    <div class="form-group">
+                        <label>Белки (г на 100г)</label>
+                        <input type="number" name="protein" step="0.1" required placeholder="31">
+                    </div>
+                    <div class="form-group">
+                        <label>Жиры (г на 100г)</label>
+                        <input type="number" name="fat" step="0.1" required placeholder="3.6">
+                    </div>
+                    <div class="form-group">
+                        <label>Углеводы (г на 100г)</label>
+                        <input type="number" name="carbs" step="0.1" required placeholder="0">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">➕ Добавить ингредиент</button>
+            </form>
+        </div>
+
+        <div class="search-box">
+            <input type="text" placeholder="🔍 Поиск ингредиентов..." id="ingredientSearch" onkeyup="filterIngredients()">
+        </div>
+
+        <table class="ingredient-table" id="ingredientTable">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Калории</th>
+                    <th>Белки (г)</th>
+                    <th>Жиры (г)</th>
+                    <th>Углеводы (г)</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="ingredientTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
