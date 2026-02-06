@@ -17,7 +17,7 @@ async function saveIngredient(event) {
         ingredients = await apiFetch('/api/ingredients/');
         form.reset();
         renderIngredients();
-        showError('Ингредиент успешно добавлен!');
+        showToast('Ингредиент успешно добавлен!');
     } catch (e) {
         showError(e.message || 'Ошибка добавления ингредиента');
     }
