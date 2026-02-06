@@ -22,7 +22,7 @@ async function apiFetch(url, options = {}) {
     const response = await fetch(url, init);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        const msg = data.error || data.errors || JSON.stringify(data) || 'Ошибка запроса';
+        const msg = data.error || data.errors || data.detail || JSON.stringify(data) || 'Ошибка запроса';
         throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
     }
     return data;

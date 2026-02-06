@@ -1,21 +1,20 @@
 """URL configuration for planner API."""
 
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 
-from planner.api import (
-    ingredient_delete,
-    ingredient_list_or_create,
-    menu_get_or_update,
-    recipe_detail_update_delete,
-    recipe_list_or_create,
-    shopping_list,
+from planner.views_api import (
+    IngredientViewSet,
+    MenuView,
+    RecipeViewSet,
+    ShoppingListView,
 )
 
+router = DefaultRouter()
+router.register("ingredients", IngredientViewSet, basename="ingredient")
+router.register("recipes", RecipeViewSet, basename="recipe")
+
 urlpatterns = [
-    path("ingredients/", ingredient_list_or_create),
-    path("ingredients/<int:pk>/", ingredient_delete),
-    path("recipes/", recipe_list_or_create),
-    path("recipes/<int:pk>/", recipe_detail_update_delete),
-    path("menu/", menu_get_or_update),
-    path("shopping-list/", shopping_list),
-]
+    path("menu/", MenuView.as_view()),
+    path("shopping-list/", ShoppingListView.as_view()),
+] + router.urls
