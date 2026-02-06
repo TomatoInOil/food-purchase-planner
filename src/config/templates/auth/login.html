@@ -23,7 +23,7 @@
                 <label for="id_password">Пароль</label>
                 <div class="password-wrap">
                     <input type="password" name="password" id="id_password" required placeholder="Пароль" autocomplete="current-password">
-                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Показать пароль">👁</button>
                 </div>
                 {% if form.password.errors %}
                     <p class="field-error">{{ form.password.errors.0 }}</p>

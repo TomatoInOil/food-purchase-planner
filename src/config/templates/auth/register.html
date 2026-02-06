@@ -32,7 +32,7 @@
                 <label for="id_password1">Пароль</label>
                 <div class="password-wrap">
                     <input type="password" name="password1" id="id_password1" required placeholder="Пароль" autocomplete="new-password">
-                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Показать пароль">👁</button>
                 </div>
                 {% if form.password1.errors %}
                     <p class="field-error">{{ form.password1.errors.0 }}</p>
@@ -42,7 +42,7 @@
                 <label for="id_password2">Подтверждение пароля</label>
                 <div class="password-wrap">
                     <input type="password" name="password2" id="id_password2" required placeholder="Повторите пароль" autocomplete="new-password">
-                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Удерживайте, чтобы показать пароль">👁</button>
+                    <button type="button" class="password-toggle" aria-label="Показать пароль" title="Показать пароль">👁</button>
                 </div>
                 {% if form.password2.errors %}
                     <p class="field-error">{{ form.password2.errors.0 }}</p>
