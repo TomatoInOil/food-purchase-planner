@@ -16,12 +16,39 @@ function setDefaultShoppingDates() {
     }
 }
 
+function getDayNutritionTotals(dayIndex) {
+    let calories = 0, protein = 0, fat = 0, carbs = 0;
+    for (let m = 0; m < 4; m++) {
+        const recipeId = weekMenu[`${dayIndex}-${m}`];
+        if (!recipeId) continue;
+        const r = recipes.find(x => x.id === recipeId);
+        if (r) {
+            calories += r.total_calories || 0;
+            protein += r.total_protein || 0;
+            fat += r.total_fat || 0;
+            carbs += r.total_carbs || 0;
+        }
+    }
+    return { calories, protein, fat, carbs };
+}
+
+function formatDaySummary(totals) {
+    const { calories, protein, fat, carbs } = totals;
+    if (calories === 0 && protein === 0 && fat === 0 && carbs === 0) {
+        return '—';
+    }
+    const parts = [`${Math.round(calories)} ккал`, `Б ${Math.round(protein)}`, `Ж ${Math.round(fat)}`, `У ${Math.round(carbs)}`];
+    return parts.join(' · ');
+}
+
 function generateWeekPlanner() {
     const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
     const meals = ['Завтрак', 'Обед', 'Перекус', 'Ужин'];
     const container = document.getElementById('weekPlanner');
 
-    container.innerHTML = days.map((day, dayIndex) => `
+    container.innerHTML = days.map((day, dayIndex) => {
+        const totals = getDayNutritionTotals(dayIndex);
+        return `
         <div class="day-card">
             <h3>${day}</h3>
             ${meals.map((meal, mealIndex) => {
@@ -38,8 +65,9 @@ function generateWeekPlanner() {
                     </select>
                 </div>
             `}).join('')}
+            <div class="day-summary" data-day-index="${dayIndex}">${formatDaySummary(totals)}</div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 function updateWeekMenu() {
@@ -52,6 +80,10 @@ function updateWeekMenu() {
         } else {
             weekMenu[`${select.dataset.day}-${select.dataset.meal}`] = null;
         }
+    });
+    document.querySelectorAll('#weekPlanner .day-summary').forEach(el => {
+        const dayIndex = parseInt(el.dataset.dayIndex, 10);
+        el.textContent = formatDaySummary(getDayNutritionTotals(dayIndex));
     });
 }
 
