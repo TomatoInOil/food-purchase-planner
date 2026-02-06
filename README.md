@@ -2,6 +2,14 @@
 
 Планировщик покупок и менеджер рецептов. Главная страница доступна после входа; есть регистрация (`/register/`), вход (`/login/`) и выход (`/logout/`).
 
+**Стек:** Django 6, Python 3.13. Управление зависимостями — [uv](https://docs.astral.sh/uv/).
+
+## Разработка
+
+- **Зависимости:** `uv sync` (dev-зависимости: pytest, pytest-django, ruff, mypy).
+- **Тесты:** `uv run pytest src/planner/tests.py -v` или `uv run python src/manage.py test planner`.
+- **Линтеры:** `uv run ruff check src`, `uv run mypy src`.
+
 ## Развёртывание
 
 ### Локально (без Docker)

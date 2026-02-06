@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "django>=6.0.2",
+    "djangorestframework>=3.16.1",
     "gunicorn>=25.0.1",
     "psycopg[binary]>=3.3.2",
     "python-dotenv>=1.2.1",
@@ -16,6 +17,8 @@ dev = [
     "django-stubs>=5.2.9",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-django>=4.11.1",
     "ruff>=0.15.0",
 ]
 
@@ -26,3 +29,7 @@ explicit_package_bases = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = "src"
