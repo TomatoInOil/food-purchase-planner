@@ -27,7 +27,7 @@ function renderIngredients() {
     const tbody = document.getElementById('ingredientTableBody');
     tbody.innerHTML = ingredients.map(ing => {
         const deleteBtn = ing.is_owner
-            ? `<button class="btn btn-danger btn-small" onclick="deleteIngredient(${ing.id})">Удалить</button>`
+            ? `<button type="button" class="btn-icon" onclick="deleteIngredient(${ing.id})" title="Удалить">❌</button>`
             : '';
         return `
         <tr>

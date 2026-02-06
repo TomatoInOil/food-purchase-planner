@@ -335,6 +335,19 @@ textarea {
     font-size: 0.9em;
 }
 
+.btn-icon {
+    background: none;
+    border: none;
+    padding: 4px 6px;
+    font-size: 1.1em;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.btn-icon:hover {
+    opacity: 0.8;
+}
+
 .ingredient-row {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr auto;
