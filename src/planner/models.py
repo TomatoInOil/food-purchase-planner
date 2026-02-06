@@ -1,7 +1,13 @@
 """Models for recipes, ingredients, and weekly menu planning."""
 
+import secrets
+import string
+
 from django.conf import settings
 from django.db import models
+
+FRIEND_CODE_LENGTH = 8
+FRIEND_CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
 class Ingredient(models.Model):
@@ -150,3 +156,69 @@ class MenuSlot(models.Model):
 
     def __str__(self):
         return f"{self.get_day_of_week_display()} {self.get_meal_type_display()}"
+
+
+class UserFriendCode(models.Model):
+    """One-time friend code for a user. Created lazily on first API request for 'my code'."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="friend_code",
+    )
+    code = models.CharField(max_length=20, unique=True)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = _generate_unique_friend_code()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user_id} — {self.code}"
+
+
+class FriendRequest(models.Model):
+    """Friend request between two users. Multiple records per pair allowed (e.g. after declined)."""
+
+    STATUS_PENDING = "pending"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_DECLINED = "declined"
+    STATUS_REMOVED = "removed"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "pending"),
+        (STATUS_ACCEPTED, "accepted"),
+        (STATUS_DECLINED, "declined"),
+        (STATUS_REMOVED, "removed"),
+        (STATUS_CANCELLED, "cancelled"),
+    ]
+
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_friend_requests",
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_friend_requests",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.from_user_id} → {self.to_user_id} ({self.status})"
+
+
+def _generate_unique_friend_code():
+    """Generate a unique alphanumeric code for UserFriendCode. Retries on collision."""
+    while True:
+        code = "".join(
+            secrets.choice(FRIEND_CODE_ALPHABET) for _ in range(FRIEND_CODE_LENGTH)
+        )
+        if not UserFriendCode.objects.filter(code=code).exists():
+            return code
