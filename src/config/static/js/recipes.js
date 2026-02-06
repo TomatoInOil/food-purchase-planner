@@ -29,6 +29,38 @@ function removeIngredientRow(button) {
     calculateNutrition();
 }
 
+function refreshRecipeIngredientSelects() {
+    const container = document.getElementById('ingredientsContainer');
+    if (!container) return;
+
+    const selects = container.querySelectorAll('.ingredient-select');
+    selects.forEach(select => {
+        const prevValue = select.value;
+
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        if (ingredients && ingredients.length > 0) {
+            ingredients.forEach(ing => {
+                const opt = document.createElement('option');
+                opt.value = String(ing.id);
+                opt.textContent = ing.name || '';
+                select.appendChild(opt);
+            });
+        }
+
+        const validValues = ['', ...(ingredients || []).map(ing => String(ing.id))];
+        if (prevValue && validValues.includes(prevValue)) {
+            select.value = prevValue;
+        } else {
+            select.value = '';
+        }
+    });
+
+    calculateNutrition();
+}
+
 function calculateNutrition() {
     const rows = document.querySelectorAll('.ingredient-row');
     let totalCalories = 0, totalProtein = 0, totalFat = 0, totalCarbs = 0;

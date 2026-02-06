@@ -9,5 +9,13 @@ function switchTab(tabName, btn) {
     if (btn) btn.classList.add('active');
     if (tabName === 'menu') {
         generateWeekPlanner();
+    } else if (tabName === 'create-recipe') {
+        if (typeof refreshRecipeIngredientSelects === 'function') {
+            refreshRecipeIngredientSelects();
+        }
+    } else if (tabName === 'friends') {
+        if (typeof loadFriendsTabData === 'function') {
+            loadFriendsTabData();
+        }
     }
 }
