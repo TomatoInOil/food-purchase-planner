@@ -6,6 +6,7 @@
  *  - sendFriendRequestByCode
  *  - handleFriendRequestAccept / handleFriendRequestDecline
  *  - handleFriendRemove
+ *  - handleToggleEditRecipes
  */
 
 let friends = [];
@@ -14,6 +15,7 @@ let currentFriendRequestId = null;
 let currentFriendRemoveId = null;
 let currentFriendRequestName = '';
 let currentFriendRemoveName = '';
+let currentFriendCanEditRecipes = false;
 
 // High-level: load all data for the Friends tab.
 async function loadFriendsTabData() {
@@ -160,7 +162,19 @@ function renderFriends() {
     friends.forEach((friend) => {
         const li = document.createElement('li');
         li.className = 'friend-item';
-        li.textContent = friend.username || '';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = friend.username || '';
+
+        li.appendChild(nameSpan);
+
+        if (friend.can_edit_recipes) {
+            const badge = document.createElement('span');
+            badge.className = 'friend-edit-badge';
+            badge.textContent = 'совместное редактирование';
+            li.appendChild(badge);
+        }
+
         if (friend.user_id !== undefined && friend.user_id !== null) {
             li.dataset.userId = String(friend.user_id);
         }
@@ -168,7 +182,7 @@ function renderFriends() {
             li.dataset.friendName = friend.username;
         }
         li.onclick = function () {
-            openFriendRemoveFromList(friend);
+            openFriendActionsFromList(friend);
         };
         listEl.appendChild(li);
     });
@@ -214,14 +228,45 @@ function openFriendRequestFromList(req) {
     openFriendRequestModal(currentFriendRequestName);
 }
 
-// Medium-level: open remove friend modal from list item.
-function openFriendRemoveFromList(friend) {
+// Medium-level: open actions modal from list item.
+function openFriendActionsFromList(friend) {
     if (!friend) {
         return;
     }
     currentFriendRemoveId = friend.user_id;
     currentFriendRemoveName = friend.username || '';
-    openFriendRemoveModal(currentFriendRemoveName);
+    currentFriendCanEditRecipes = !!friend.can_edit_recipes;
+    openFriendActionsModal(currentFriendRemoveName, currentFriendCanEditRecipes);
+}
+
+// High-level: toggle friend recipe editing permission.
+async function handleToggleEditRecipes() {
+    const userId = currentFriendRemoveId;
+    if (!userId) {
+        showError('Не выбран друг');
+        return;
+    }
+
+    try {
+        const result = await apiFetch(`/api/friends/${userId}/toggle-edit-recipes/`, {
+            method: 'POST'
+        });
+        const newState = result.can_edit_recipes;
+        showToast(newState
+            ? 'Совместное редактирование рецептов включено'
+            : 'Совместное редактирование рецептов отключено'
+        );
+
+        friends = await apiFetch('/api/friends/');
+        renderFriends();
+        recipes = await apiFetch('/api/recipes/');
+        renderRecipes();
+    } catch (e) {
+        showError(e.message || 'Не удалось изменить настройку');
+    } finally {
+        closeFriendActionsModal();
+        currentFriendRemoveId = null;
+    }
 }
 
 // Low-level: copy code helpers and modal UI.
@@ -281,6 +326,39 @@ function closeFriendModal() {
         modalEl.classList.remove('active');
     }
     currentFriendRequestName = '';
+}
+
+function openFriendActionsModal(friendDisplayName, canEditRecipes) {
+    const titleEl = document.getElementById('modalFriendActionsTitle');
+    const modalEl = document.getElementById('friendActionsModal');
+    const toggleBtn = document.getElementById('btnToggleEditRecipes');
+    if (titleEl) {
+        titleEl.textContent = friendDisplayName || 'Друг';
+    }
+    if (toggleBtn) {
+        toggleBtn.textContent = canEditRecipes
+            ? 'Запретить редактирование рецептов'
+            : 'Разрешить редактирование рецептов';
+        toggleBtn.className = canEditRecipes
+            ? 'btn btn-secondary'
+            : 'btn btn-primary';
+        toggleBtn.style.width = '100%';
+    }
+    if (modalEl) {
+        modalEl.classList.add('active');
+    }
+}
+
+function closeFriendActionsModal() {
+    const modalEl = document.getElementById('friendActionsModal');
+    if (modalEl) {
+        modalEl.classList.remove('active');
+    }
+}
+
+function openFriendRemoveConfirm() {
+    closeFriendActionsModal();
+    openFriendRemoveModal(currentFriendRemoveName);
 }
 
 function openFriendRemoveModal(friendDisplayName) {

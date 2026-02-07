@@ -23,3 +23,17 @@ def get_friend_user_or_404(request_user, friend_id):
     if friend_request.from_user_id == request_user.id:
         return friend_request.to_user
     return friend_request.from_user
+
+
+def can_friend_edit_recipes(editor_user, recipe_owner):
+    """
+    Check if editor_user has permission to edit recipe_owner's recipes.
+    Returns True if an accepted friend request with can_edit_recipes=True exists.
+    """
+    return FriendRequest.objects.filter(
+        status=FriendRequest.STATUS_ACCEPTED,
+        can_edit_recipes=True,
+    ).filter(
+        models.Q(from_user=editor_user, to_user=recipe_owner)
+        | models.Q(from_user=recipe_owner, to_user=editor_user)
+    ).exists()

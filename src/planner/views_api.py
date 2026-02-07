@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 
 from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
 from planner.services import calculate_shopping_list_for_user
+from planner.services_friends import can_friend_edit_recipes
 from planner.permissions import IsOwnerOrReadOnly, is_system_ingredient
 from planner.serializers import (
     IngredientSerializer,
@@ -103,7 +104,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
+        is_owner = instance.user_id == request.user.id
+        is_friend_editor = can_friend_edit_recipes(request.user, instance.user)
+        if not is_owner and not is_friend_editor:
             return Response(
                 {"error": "Not allowed to edit this recipe"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -121,7 +124,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
+        is_owner = instance.user_id == request.user.id
+        is_friend_editor = can_friend_edit_recipes(request.user, instance.user)
+        if not is_owner and not is_friend_editor:
             return Response(
                 {"error": "Not allowed to delete this recipe"},
                 status=status.HTTP_403_FORBIDDEN,

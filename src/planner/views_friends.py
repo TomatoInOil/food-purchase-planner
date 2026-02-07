@@ -84,6 +84,7 @@ class FriendsListView(APIView):
                     "username": other.username,
                     "friend_request_id": fr.id,
                     "since": fr.created_at,
+                    "can_edit_recipes": fr.can_edit_recipes,
                 }
             )
 
@@ -158,6 +159,26 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         serializer = self.get_serializer(friend_request)
         return Response(serializer.data)
+
+
+class FriendToggleEditRecipesView(APIView):
+    """Toggle whether a friend can edit your recipes."""
+
+    def post(self, request, user_id):
+        qs = FriendRequest.objects.filter(status=FriendRequest.STATUS_ACCEPTED).filter(
+            models.Q(from_user=request.user, to_user_id=user_id)
+            | models.Q(from_user_id=user_id, to_user=request.user)
+        )
+        friend_request = qs.first()
+        if not friend_request:
+            raise ValidationError("Пользователь не является вашим другом")
+
+        friend_request.can_edit_recipes = not friend_request.can_edit_recipes
+        friend_request.save(update_fields=["can_edit_recipes"])
+        return Response({
+            "success": True,
+            "can_edit_recipes": friend_request.can_edit_recipes,
+        })
 
 
 class FriendMenuView(APIView):

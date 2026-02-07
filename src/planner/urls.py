@@ -14,6 +14,7 @@ from planner.views_friends import (
     FriendRemoveView,
     FriendRequestViewSet,
     FriendShoppingListView,
+    FriendToggleEditRecipesView,
     FriendsListView,
     MyFriendCodeView,
     SendFriendRequestView,
@@ -38,6 +39,11 @@ urlpatterns = [
         "friends/<int:user_id>/remove/",
         FriendRemoveView.as_view(),
         name="friends-remove",
+    ),
+    path(
+        "friends/<int:user_id>/toggle-edit-recipes/",
+        FriendToggleEditRecipesView.as_view(),
+        name="friends-toggle-edit-recipes",
     ),
     path(
         "friends/<int:user_id>/menu/",

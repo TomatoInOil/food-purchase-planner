@@ -1,3 +1,22 @@
+<div id="friendActionsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalFriendActionsTitle">Друг</h2>
+            <button class="close-modal" onclick="closeFriendActionsModal()">&times;</button>
+        </div>
+        <div id="modalFriendActionsContent">
+            <div class="modal-actions" style="flex-direction: column; gap: 12px;">
+                <button id="btnToggleEditRecipes" class="btn btn-secondary" style="width: 100%;" onclick="handleToggleEditRecipes()">
+                    Разрешить редактирование рецептов
+                </button>
+                <button class="btn btn-danger" style="width: 100%;" onclick="openFriendRemoveConfirm()">
+                    Удалить из друзей
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="friendRemoveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">

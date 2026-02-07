@@ -205,6 +205,7 @@ class FriendRequest(models.Model):
         related_name="received_friend_requests",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    can_edit_recipes = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

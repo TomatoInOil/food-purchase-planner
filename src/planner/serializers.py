@@ -81,6 +81,7 @@ class RecipeIngredientWriteSerializer(serializers.Serializer):
 
 class RecipeSerializer(serializers.ModelSerializer):
     is_owner = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
     author_username = serializers.SerializerMethodField()
     ingredients = RecipeIngredientReadSerializer(many=True, read_only=True)
     total_calories = serializers.FloatField(read_only=True, default=0)
@@ -100,6 +101,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "total_fat",
             "total_carbs",
             "is_owner",
+            "can_edit",
             "ingredients",
             "author_username",
         ]
@@ -107,6 +109,17 @@ class RecipeSerializer(serializers.ModelSerializer):
     def get_is_owner(self, obj):
         request = self.context.get("request")
         return request and request.user.id == obj.user_id
+
+    def get_can_edit(self, obj):
+        """Return True if the current user is the owner or a friend with edit permission."""
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.id == obj.user_id:
+            return True
+        from planner.services_friends import can_friend_edit_recipes
+
+        return can_friend_edit_recipes(request.user, obj.user)
 
     def get_author_username(self, obj):
         return obj.user.username if obj.user_id else ""
@@ -289,3 +302,4 @@ class FriendSerializer(serializers.Serializer):
     username = serializers.CharField()
     friend_request_id = serializers.IntegerField()
     since = serializers.DateTimeField()
+    can_edit_recipes = serializers.BooleanField()
