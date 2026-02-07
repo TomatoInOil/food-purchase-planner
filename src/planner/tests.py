@@ -8,6 +8,7 @@ from django.test import Client, TestCase
 from planner.models import (
     FriendRequest,
     Ingredient,
+    Menu,
     MenuSlot,
     Recipe,
     RecipeIngredient,
@@ -265,6 +266,104 @@ class MenuApiTests(ApiTestBase):
         self.assertIsNone(data["0-1"])
 
 
+class MultiMenuApiTests(ApiTestBase):
+    def test_menus_list_empty_initially(self):
+        response = self.client.get("/api/menus/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_menus_create_returns_menu(self):
+        response = self.client.post(
+            "/api/menus/",
+            data={"name": "Завтраки"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("id", data)
+        self.assertEqual(data["name"], "Завтраки")
+        self.assertIn("created_at", data)
+
+    def test_menus_list_returns_created(self):
+        Menu.objects.create(user=self.user, name="A")
+        Menu.objects.create(user=self.user, name="B")
+        response = self.client.get("/api/menus/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["name"], "A")
+        self.assertEqual(data[1]["name"], "B")
+
+    def test_menu_detail_get_empty_slots(self):
+        menu = Menu.objects.create(user=self.user, name="Test")
+        response = self.client.get(f"/api/menus/{menu.id}/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        for day in range(7):
+            for meal in range(4):
+                self.assertIsNone(data[f"{day}-{meal}"])
+
+    def test_menu_detail_put_and_get(self):
+        menu = Menu.objects.create(user=self.user, name="Test")
+        recipe = Recipe.objects.create(
+            user=self.user, name="R", description="", instructions=""
+        )
+        body = {"0-0": recipe.id, "2-1": recipe.id}
+        response = self.client.put(
+            f"/api/menus/{menu.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        response2 = self.client.get(f"/api/menus/{menu.id}/")
+        data = response2.json()
+        self.assertEqual(data["0-0"], recipe.id)
+        self.assertEqual(data["2-1"], recipe.id)
+        self.assertIsNone(data["1-0"])
+
+    def test_menu_detail_patch_rename(self):
+        menu = Menu.objects.create(user=self.user, name="Old Name")
+        response = self.client.patch(
+            f"/api/menus/{menu.id}/",
+            data={"name": "New Name"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "New Name")
+        menu.refresh_from_db()
+        self.assertEqual(menu.name, "New Name")
+
+    def test_menu_detail_delete(self):
+        menu = Menu.objects.create(user=self.user, name="Del")
+        response = self.client.delete(f"/api/menus/{menu.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Menu.objects.filter(pk=menu.id).exists())
+
+    def test_menu_detail_404_for_other_user(self):
+        other = User.objects.create_user(
+            username="other", password="pass", email="other@example.com"
+        )
+        menu = Menu.objects.create(user=other, name="Private")
+        response = self.client.get(f"/api/menus/{menu.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_multiple_menus_independent_slots(self):
+        menu1 = Menu.objects.create(user=self.user, name="Menu 1")
+        menu2 = Menu.objects.create(user=self.user, name="Menu 2")
+        recipe = Recipe.objects.create(
+            user=self.user, name="R", description="", instructions=""
+        )
+        self.client.put(
+            f"/api/menus/{menu1.id}/",
+            data={"0-0": recipe.id},
+            content_type="application/json",
+        )
+        data1 = self.client.get(f"/api/menus/{menu1.id}/").json()
+        data2 = self.client.get(f"/api/menus/{menu2.id}/").json()
+        self.assertEqual(data1["0-0"], recipe.id)
+        self.assertIsNone(data2["0-0"])
+
+
 class ShoppingListApiTests(ApiTestBase):
     def test_shopping_list_requires_dates(self):
         response = self.client.post(
@@ -284,8 +383,9 @@ class ShoppingListApiTests(ApiTestBase):
         RecipeIngredient.objects.create(recipe=recipe, ingredient=ing, weight_grams=100)
         start = date.today()
         end = start + timedelta(days=1)
+        menu = Menu.objects.create(user=self.user, name="Test Menu")
         MenuSlot.objects.create(
-            user=self.user,
+            menu=menu,
             day_of_week=start.weekday(),
             meal_type=0,
             recipe=recipe,
@@ -504,7 +604,10 @@ class FriendsApiTests(ApiTestBase):
         recipe = Recipe.objects.create(
             user=other, name="Friend Soup", description="", instructions=""
         )
-        MenuSlot.objects.create(user=other, day_of_week=0, meal_type=0, recipe=recipe)
+        friend_menu = Menu.objects.create(user=other, name="Friend Menu")
+        MenuSlot.objects.create(
+            menu=friend_menu, day_of_week=0, meal_type=0, recipe=recipe
+        )
 
         response = self.client.get(f"/api/friends/{other.id}/menu/")
         self.assertEqual(response.status_code, 200)
@@ -543,8 +646,9 @@ class FriendsApiTests(ApiTestBase):
         RecipeIngredient.objects.create(recipe=recipe, ingredient=ing, weight_grams=100)
         start = date.today()
         end = start + timedelta(days=1)
+        friend_menu = Menu.objects.create(user=other, name="Friend Menu")
         MenuSlot.objects.create(
-            user=other, day_of_week=start.weekday(), meal_type=0, recipe=recipe
+            menu=friend_menu, day_of_week=start.weekday(), meal_type=0, recipe=recipe
         )
 
         response = self.client.post(
