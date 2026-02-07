@@ -2,15 +2,23 @@
 
 from datetime import timedelta
 
-from planner.models import MenuSlot, RecipeIngredient
+from planner.models import Menu, MenuSlot, RecipeIngredient
 
 
-def get_menu_for_user(user):
+def get_or_create_first_menu(user):
+    """Return the user's first (oldest) menu, creating a default one if none exists."""
+    menu = Menu.objects.filter(user=user).first()
+    if not menu:
+        menu = Menu.objects.create(user=user, name="Меню на неделю")
+    return menu
+
+
+def get_menu_slots(menu):
     """
-    Build menu dict from MenuSlot for the given user.
+    Build menu dict from MenuSlot for the given Menu.
     Returns {"day-meal": recipe_id} with None for empty slots.
     """
-    slots = MenuSlot.objects.filter(user=user)
+    slots = MenuSlot.objects.filter(menu=menu)
     data = {f"{s.day_of_week}-{s.meal_type}": s.recipe_id for s in slots}
     for day in range(7):
         for meal in range(4):
@@ -20,15 +28,39 @@ def get_menu_for_user(user):
     return data
 
 
-def calculate_shopping_list_for_user(user, start_date, end_date, people_count=2):
+def get_menu_for_user(user):
     """
-    Compute aggregated shopping list for the user's weekly menu over the date range.
+    Build menu dict for the user's first menu.
+    Backward-compatible wrapper around get_menu_slots.
+    """
+    menu = get_or_create_first_menu(user)
+    return get_menu_slots(menu)
+
+
+def calculate_shopping_list(menu, start_date, end_date, people_count=2):
+    """
+    Compute aggregated shopping list for a specific menu over the date range.
     Returns list of {"name": str, "weight_grams": int} sorted by name.
     """
     slots_by_day_meal = {
         (s.day_of_week, s.meal_type): s.recipe_id
-        for s in MenuSlot.objects.filter(user=user)
+        for s in MenuSlot.objects.filter(menu=menu)
     }
+    aggregated = _aggregate_ingredients(slots_by_day_meal, start_date, end_date)
+    return _build_shopping_result(aggregated, people_count)
+
+
+def calculate_shopping_list_for_user(user, start_date, end_date, people_count=2):
+    """
+    Compute shopping list for the user's first menu.
+    Backward-compatible wrapper around calculate_shopping_list.
+    """
+    menu = get_or_create_first_menu(user)
+    return calculate_shopping_list(menu, start_date, end_date, people_count)
+
+
+def _aggregate_ingredients(slots_by_day_meal, start_date, end_date):
+    """Walk date range and collect ingredient weights from recipe slots."""
     aggregated = {}
     current = start_date
     while current <= end_date:
@@ -48,6 +80,11 @@ def calculate_shopping_list_for_user(user, start_date, end_date, people_count=2)
                     }
                 aggregated[ing_id]["weight_grams"] += ri.weight_grams
         current += timedelta(days=1)
+    return aggregated
+
+
+def _build_shopping_result(aggregated, people_count):
+    """Format aggregated ingredients into sorted list with people multiplier."""
     result = [
         {"name": v["name"], "weight_grams": round(v["weight_grams"] * people_count)}
         for v in aggregated.values()

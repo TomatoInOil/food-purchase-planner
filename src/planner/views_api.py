@@ -1,18 +1,24 @@
 """DRF ViewSets and API views for planner API."""
 
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
-from planner.services import calculate_shopping_list_for_user
+from planner.models import Ingredient, Menu, MenuSlot, Recipe, RecipeIngredient
 from planner.permissions import IsOwnerOrReadOnly, is_system_ingredient
 from planner.serializers import (
     IngredientSerializer,
-    MenuSerializer,
+    MenuItemSerializer,
+    MenuSlotsSerializer,
     RecipeCreateUpdateSerializer,
     RecipeSerializer,
     ShoppingListRequestSerializer,
+)
+from planner.services import (
+    calculate_shopping_list,
+    calculate_shopping_list_for_user,
+    get_or_create_first_menu,
 )
 
 
@@ -130,9 +136,63 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return Response({"status": "ok"})
 
 
-class MenuView(APIView):
+class MenuListCreateView(APIView):
+    """List all menus for the current user or create a new one."""
+
     def get(self, request):
-        serializer = MenuSerializer(instance=request.user, context={"request": request})
+        menus = Menu.objects.filter(user=request.user)
+        serializer = MenuItemSerializer(menus, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        name = (request.data or {}).get("name", "Меню на неделю")
+        menu = Menu.objects.create(user=request.user, name=name)
+        serializer = MenuItemSerializer(menu)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MenuDetailView(APIView):
+    """Retrieve, update slots, rename, or delete a specific menu."""
+
+    def get(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        serializer = MenuSlotsSerializer(instance=menu, context={"request": request})
+        return Response(serializer.data)
+
+    def put(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        body = request.data
+        if not isinstance(body, dict):
+            return Response(
+                {"error": "Body must be an object"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        _replace_menu_slots(menu, body)
+        return Response({"status": "ok"})
+
+    def patch(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        name = (request.data or {}).get("name")
+        if name:
+            menu.name = name
+            menu.save(update_fields=["name"])
+        serializer = MenuItemSerializer(menu)
+        return Response(serializer.data)
+
+    def delete(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        menu.delete()
+        return Response({"status": "ok"})
+
+
+class MenuView(APIView):
+    """Legacy endpoint: operates on the user's first (oldest) menu."""
+
+    def get(self, request):
+        menu = get_or_create_first_menu(request.user)
+        serializer = MenuSlotsSerializer(
+            instance=menu, context={"request": request}
+        )
         return Response(serializer.data)
 
     def put(self, request):
@@ -142,40 +202,57 @@ class MenuView(APIView):
                 {"error": "Body must be an object"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        user = request.user
-        MenuSlot.objects.filter(user=user).delete()
-        valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
-        for key, recipe_id in body.items():
-            if recipe_id is None:
-                continue
-            try:
-                day_str, meal_str = key.split("-")
-                day_of_week = int(day_str)
-                meal_type = int(meal_str)
-            except (ValueError, AttributeError):
-                continue
-            if day_of_week not in range(7) or meal_type not in range(4):
-                continue
-            if recipe_id not in valid_recipe_ids:
-                continue
-            MenuSlot.objects.create(
-                user=user,
-                day_of_week=day_of_week,
-                meal_type=meal_type,
-                recipe_id=recipe_id,
-            )
+        menu = get_or_create_first_menu(request.user)
+        _replace_menu_slots(menu, body)
         return Response({"status": "ok"})
 
 
 class ShoppingListView(APIView):
+    """Generate shopping list. Accepts optional menu_id in body."""
+
     def post(self, request):
         serializer = ShoppingListRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        result = calculate_shopping_list_for_user(
-            request.user,
-            data["start_date"],
-            data["end_date"],
-            data.get("people_count", 2),
-        )
+        menu_id = request.data.get("menu_id")
+        if menu_id:
+            menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+            result = calculate_shopping_list(
+                menu,
+                data["start_date"],
+                data["end_date"],
+                data.get("people_count", 2),
+            )
+        else:
+            result = calculate_shopping_list_for_user(
+                request.user,
+                data["start_date"],
+                data["end_date"],
+                data.get("people_count", 2),
+            )
         return Response(result)
+
+
+def _replace_menu_slots(menu, body):
+    """Delete existing slots and recreate from request body dict."""
+    MenuSlot.objects.filter(menu=menu).delete()
+    valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
+    for key, recipe_id in body.items():
+        if recipe_id is None:
+            continue
+        try:
+            day_str, meal_str = key.split("-")
+            day_of_week = int(day_str)
+            meal_type = int(meal_str)
+        except (ValueError, AttributeError):
+            continue
+        if day_of_week not in range(7) or meal_type not in range(4):
+            continue
+        if recipe_id not in valid_recipe_ids:
+            continue
+        MenuSlot.objects.create(
+            menu=menu,
+            day_of_week=day_of_week,
+            meal_type=meal_type,
+            recipe_id=recipe_id,
+        )

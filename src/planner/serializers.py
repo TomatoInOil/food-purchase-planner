@@ -7,6 +7,7 @@ from rest_framework import serializers
 from planner.models import (
     FriendRequest,
     Ingredient,
+    Menu,
     MenuSlot,
     Recipe,
     RecipeIngredient,
@@ -192,15 +193,24 @@ class RecipeCreateUpdateSerializer(RecipeSerializer):
         fields = RecipeSerializer.Meta.fields
 
 
+class MenuItemSerializer(serializers.ModelSerializer):
+    """Serializer for menu list items (id, name, created_at)."""
+
+    class Meta:
+        model = Menu
+        fields = ["id", "name", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+
 def _menu_slot_key(day_of_week, meal_type):
     return f"{day_of_week}-{meal_type}"
 
 
-class MenuSerializer(serializers.Serializer):
-    """Read-only: represents user's menu as {day-meal: recipe_id}."""
+class MenuSlotsSerializer(serializers.Serializer):
+    """Read-only: represents a Menu's slots as {day-meal: recipe_id}."""
 
     def to_representation(self, instance):
-        slots = MenuSlot.objects.filter(user=instance).select_related("recipe")
+        slots = MenuSlot.objects.filter(menu=instance).select_related("recipe")
         data = {f"{s.day_of_week}-{s.meal_type}": s.recipe_id for s in slots}
         for day in range(7):
             for meal in range(4):
