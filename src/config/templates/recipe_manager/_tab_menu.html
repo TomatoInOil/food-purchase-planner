@@ -1,40 +1,55 @@
 <div id="menu" class="tab-content">
-    <div class="card">
-        <h2 class="card-title">Планирование меню на неделю</h2>
-        <div class="form-group menu-owner-select">
-            <label for="menuOwnerSelect">Меню пользователя:</label>
-            <div class="form-help">Вы можете добавить пользователя в друзья и посмотреть его меню, а также сформировать список покупок к нему.</div>
-            <select id="menuOwnerSelect" onchange="handleMenuOwnerChange()">
-                <option value="">Моё меню</option>
-            </select>
-        </div>
-        <div class="week-planner" id="weekPlanner">
-        </div>
-        <div class="card-actions">
-            <button class="btn btn-primary" onclick="saveWeekMenu()">💾 Сохранить меню</button>
-            <button type="button" id="clear-menu-btn" class="btn btn-danger" onclick="clearWeekMenu()" aria-label="Очистить меню">🔄</button>
-        </div>
-    </div>
-    <div class="card">
-        <h2 class="card-title">Список покупок <span id="shoppingOwnerLabel">(моё меню)</span></h2>
-        <div class="date-range">
-            <div class="form-group">
-                <label>От</label>
-                <input type="date" id="shoppingStartDate">
+    <div class="menu-layout">
+        <button class="menu-sidebar-toggle" id="menuSidebarToggle" onclick="toggleMenuSidebar()">
+            ☰ Мои меню
+        </button>
+        <aside class="menu-sidebar" id="menuSidebar">
+            <div class="menu-sidebar-header">
+                <h3>Мои меню</h3>
+                <button class="btn btn-primary btn-small" onclick="createNewMenu()">+ Новое меню</button>
             </div>
-            <div class="form-group">
-                <label>До</label>
-                <input type="date" id="shoppingEndDate">
+            <div class="menu-sidebar-list" id="menuSidebarList">
             </div>
-            <div class="form-group">
-                <label>Кол-во человек</label>
-                <input type="number" id="shoppingPeopleCount" min="1" max="20" value="2">
+        </aside>
+        <div class="menu-main">
+            <div class="card">
+                <h2 class="card-title" id="activeMenuTitle">Планирование меню на неделю</h2>
+                <div class="form-group menu-owner-select">
+                    <label for="menuOwnerSelect">Меню пользователя:</label>
+                    <div class="form-help">Вы можете добавить пользователя в друзья и посмотреть его меню, а также сформировать список покупок к нему.</div>
+                    <select id="menuOwnerSelect" onchange="handleMenuOwnerChange()">
+                        <option value="">Моё меню</option>
+                    </select>
+                </div>
+                <div class="week-planner" id="weekPlanner">
+                </div>
+                <div class="card-actions">
+                    <button class="btn btn-primary" onclick="saveWeekMenu()">💾 Сохранить меню</button>
+                    <button type="button" id="clear-menu-btn" class="btn btn-danger" onclick="clearWeekMenu()" aria-label="Очистить меню">🔄</button>
+                </div>
             </div>
-            <button class="btn btn-primary" onclick="generateShoppingList()">Сформировать список</button>
-        </div>
-        <div class="shopping-list" id="shoppingList">
-            <div class="empty-state">
-                <p>Выберите даты и нажмите "Сформировать список"</p>
+            <div class="card">
+                <h2 class="card-title">Список покупок <span id="shoppingOwnerLabel">(моё меню)</span></h2>
+                <div class="date-range">
+                    <div class="form-group">
+                        <label>От</label>
+                        <input type="date" id="shoppingStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>До</label>
+                        <input type="date" id="shoppingEndDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Кол-во человек</label>
+                        <input type="number" id="shoppingPeopleCount" min="1" max="20" value="2">
+                    </div>
+                    <button class="btn btn-primary" onclick="generateShoppingList()">Сформировать список</button>
+                </div>
+                <div class="shopping-list" id="shoppingList">
+                    <div class="empty-state">
+                        <p>Выберите даты и нажмите "Сформировать список"</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
