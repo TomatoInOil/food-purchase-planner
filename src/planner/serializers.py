@@ -214,12 +214,12 @@ class RecipeCreateUpdateSerializer(RecipeSerializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
-    """Serializer for menu list items (id, name, created_at)."""
+    """Serializer for menu list items (id, name, is_primary, created_at)."""
 
     class Meta:
         model = Menu
-        fields = ["id", "name", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        fields = ["id", "name", "is_primary", "created_at"]
+        read_only_fields = ["id", "is_primary", "created_at"]
 
 
 def _menu_slot_key(day_of_week, meal_type):

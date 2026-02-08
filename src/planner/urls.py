@@ -7,6 +7,7 @@ from planner.views_api import (
     IngredientViewSet,
     MenuDetailView,
     MenuListCreateView,
+    MenuSetPrimaryView,
     MenuView,
     RecipeViewSet,
     ShoppingListView,
@@ -39,6 +40,11 @@ router.register(
 urlpatterns = [
     path("menus/", MenuListCreateView.as_view(), name="menu-list-create"),
     path("menus/<int:menu_id>/", MenuDetailView.as_view(), name="menu-detail"),
+    path(
+        "menus/<int:menu_id>/set-primary/",
+        MenuSetPrimaryView.as_view(),
+        name="menu-set-primary",
+    ),
     path("menu/", MenuView.as_view(), name="menu-legacy"),
     path("shopping-list/", ShoppingListView.as_view(), name="shopping-list"),
     path("friends/my-code/", MyFriendCodeView.as_view(), name="friends-my-code"),

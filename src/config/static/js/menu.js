@@ -71,6 +71,15 @@ function renderMenuSidebar() {
             var actions = document.createElement('span');
             actions.className = 'menu-sidebar-item-actions';
 
+            if (!isViewingFriendMenu()) {
+                var primaryBtn = document.createElement('button');
+                primaryBtn.className = 'btn-icon btn-primary-star' + (m.is_primary ? ' active' : '');
+                primaryBtn.title = m.is_primary ? 'Основное меню' : 'Сделать основным';
+                primaryBtn.textContent = m.is_primary ? '★' : '☆';
+                primaryBtn.onclick = function (e) { e.stopPropagation(); setPrimaryMenu(m.id); };
+                actions.appendChild(primaryBtn);
+            }
+
             var renameBtn = document.createElement('button');
             renameBtn.className = 'btn-icon';
             renameBtn.title = 'Переименовать';
@@ -260,6 +269,17 @@ async function deleteMenu(menuId) {
         showToast('Меню удалено');
     } catch (e) {
         showError(e.message || 'Ошибка удаления меню');
+    }
+}
+
+async function setPrimaryMenu(menuId) {
+    try {
+        await apiFetch('/api/menus/' + menuId + '/set-primary/', { method: 'POST' });
+        menus.forEach(function (m) { m.is_primary = (m.id === menuId); });
+        renderMenuSidebar();
+        showToast('Основное меню установлено');
+    } catch (e) {
+        showError(e.message || 'Ошибка установки основного меню');
     }
 }
 
