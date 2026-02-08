@@ -697,8 +697,24 @@ textarea {
     cursor: pointer;
 }
 
+.friend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .friend-item:hover {
     color: var(--secondary);
+}
+
+.friend-edit-badge {
+    font-size: 0.75em;
+    padding: 2px 8px;
+    background: var(--primary);
+    color: var(--white);
+    border-radius: 10px;
+    white-space: nowrap;
 }
 
 .my-code-display {

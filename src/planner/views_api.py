@@ -6,7 +6,12 @@ from rest_framework.views import APIView
 
 from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
 from planner.services import calculate_shopping_list_for_user
-from planner.permissions import IsOwnerOrReadOnly, is_system_ingredient
+from planner.services_friends import get_editable_owner_ids
+from planner.permissions import (
+    IsOwnerOrFriendEditorOrReadOnly,
+    IsOwnerOrReadOnly,
+    is_system_ingredient,
+)
 from planner.serializers import (
     IngredientSerializer,
     MenuSerializer,
@@ -70,7 +75,7 @@ class IngredientViewSet(viewsets.ModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsOwnerOrReadOnly]
+    permission_classes = [IsOwnerOrFriendEditorOrReadOnly]
 
     def get_queryset(self):
         return (
@@ -87,6 +92,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["request"] = self.request
+        if self.request and self.request.user.is_authenticated:
+            context["editable_owner_ids"] = get_editable_owner_ids(
+                self.request.user
+            )
         return context
 
     def list(self, request, *args, **kwargs):
@@ -98,16 +107,13 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
-        out_serializer = RecipeSerializer(recipe, context={"request": request})
+        out_serializer = RecipeSerializer(
+            recipe, context=self.get_serializer_context()
+        )
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
-            return Response(
-                {"error": "Not allowed to edit this recipe"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         serializer = self.get_serializer(instance, data=request.data, partial=False)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
@@ -115,17 +121,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
             Recipe.objects.prefetch_related("recipe_ingredients__ingredient").get(
                 pk=recipe.pk
             ),
-            context={"request": request},
+            context=self.get_serializer_context(),
         )
         return Response(out_serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
-            return Response(
-                {"error": "Not allowed to delete this recipe"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         instance.delete()
         return Response({"status": "ok"})
 

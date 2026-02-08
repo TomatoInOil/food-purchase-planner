@@ -194,6 +194,16 @@ class FriendRequest(models.Model):
         (STATUS_CANCELLED, "cancelled"),
     ]
 
+    EDIT_RECIPES_NONE = "none"
+    EDIT_RECIPES_PENDING = "pending"
+    EDIT_RECIPES_ACCEPTED = "accepted"
+
+    EDIT_RECIPES_STATUS_CHOICES = [
+        (EDIT_RECIPES_NONE, "none"),
+        (EDIT_RECIPES_PENDING, "pending"),
+        (EDIT_RECIPES_ACCEPTED, "accepted"),
+    ]
+
     from_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -205,6 +215,18 @@ class FriendRequest(models.Model):
         related_name="received_friend_requests",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    can_edit_recipes_status = models.CharField(
+        max_length=20,
+        choices=EDIT_RECIPES_STATUS_CHOICES,
+        default=EDIT_RECIPES_NONE,
+    )
+    can_edit_recipes_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="edit_recipes_requests_sent",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

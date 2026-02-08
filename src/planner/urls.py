@@ -10,9 +10,12 @@ from planner.views_api import (
     ShoppingListView,
 )
 from planner.views_friends import (
+    EditRecipesRequestViewSet,
     FriendMenuView,
     FriendRemoveView,
     FriendRequestViewSet,
+    FriendRevokeEditRecipesView,
+    FriendSendEditRecipesRequestView,
     FriendShoppingListView,
     FriendsListView,
     MyFriendCodeView,
@@ -23,6 +26,11 @@ router = DefaultRouter()
 router.register("ingredients", IngredientViewSet, basename="ingredient")
 router.register("recipes", RecipeViewSet, basename="recipe")
 router.register("friend-requests", FriendRequestViewSet, basename="friend-request")
+router.register(
+    "edit-recipes-requests",
+    EditRecipesRequestViewSet,
+    basename="edit-recipes-request",
+)
 
 urlpatterns = [
     path("menu/", MenuView.as_view()),
@@ -38,6 +46,16 @@ urlpatterns = [
         "friends/<int:user_id>/remove/",
         FriendRemoveView.as_view(),
         name="friends-remove",
+    ),
+    path(
+        "friends/<int:user_id>/send-edit-recipes-request/",
+        FriendSendEditRecipesRequestView.as_view(),
+        name="friends-send-edit-recipes-request",
+    ),
+    path(
+        "friends/<int:user_id>/revoke-edit-recipes/",
+        FriendRevokeEditRecipesView.as_view(),
+        name="friends-revoke-edit-recipes",
     ),
     path(
         "friends/<int:user_id>/menu/",
