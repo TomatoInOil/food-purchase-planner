@@ -20,7 +20,7 @@ async function init() {
             });
             menus = [newMenu];
         }
-        activeMenuId = menus[0].id;
+        activeMenuId = _findPrimaryOrFirstId(menus);
 
         const menuData = await apiFetch(`/api/menus/${activeMenuId}/`);
         weekMenu = menuData;

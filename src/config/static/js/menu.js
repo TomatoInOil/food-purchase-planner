@@ -36,6 +36,11 @@ function buildMenuListApiUrl() {
     return '/api/menus/';
 }
 
+function _findPrimaryOrFirstId(menuList) {
+    var primary = menuList.find(function (m) { return m.is_primary; });
+    return primary ? primary.id : menuList[0].id;
+}
+
 function _initEmptyWeekMenu() {
     weekMenu = {};
     for (var d = 0; d < 7; d++) {
@@ -347,7 +352,7 @@ async function _loadFriendMenus(friendId) {
         friendCanEditMenus = response.can_edit || false;
 
         if (friendMenus.length > 0) {
-            activeFriendMenuId = friendMenus[0].id;
+            activeFriendMenuId = _findPrimaryOrFirstId(friendMenus);
             var menuData = await apiFetch('/api/friends/' + friendId + '/menus/' + activeFriendMenuId + '/');
             weekMenu = menuData;
         } else {
