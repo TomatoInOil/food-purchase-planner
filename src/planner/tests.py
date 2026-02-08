@@ -372,6 +372,113 @@ class RecipeFriendEditorTests(ApiTestBase):
         self.assertEqual(response.json()["name"], "Updated My Soup")
 
 
+class RecipeListQueryCountTests(TestCase):
+    """Prove that recipe list does NOT trigger N+1 queries for can_edit."""
+
+    _user_seq = 0
+
+    def setUp(self):
+        self.viewer = User.objects.create_user(
+            username="viewer", password="pass", email="viewer@test.com"
+        )
+        self.client = Client()
+        self.client.force_login(self.viewer)
+
+    def _create_other_users_recipes(self, count):
+        """Create *count* recipes owned by distinct other users."""
+        for _ in range(count):
+            RecipeListQueryCountTests._user_seq += 1
+            seq = RecipeListQueryCountTests._user_seq
+            other = User.objects.create_user(
+                username=f"other_{seq}", password="pass", email=f"o{seq}@test.com"
+            )
+            ing = Ingredient.objects.create(
+                user=other,
+                name=f"Ing_{seq}",
+                calories=1,
+                protein=1,
+                fat=1,
+                carbs=1,
+            )
+            recipe = Recipe.objects.create(
+                user=other,
+                name=f"Recipe_{seq}",
+                description="",
+                instructions="",
+            )
+            RecipeIngredient.objects.create(
+                recipe=recipe, ingredient=ing, weight_grams=100
+            )
+
+    def _count_list_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get("/api/recipes/")
+            self.assertEqual(response.status_code, 200)
+        return len(ctx)
+
+    def test_query_count_does_not_grow_with_recipe_count(self):
+        """The number of DB queries must stay constant regardless of how many
+        other-users' recipes exist — proving the N+1 is eliminated."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._create_other_users_recipes(3)
+        with CaptureQueriesContext(connection) as ctx_small:
+            resp = self.client.get("/api/recipes/")
+            self.assertEqual(resp.status_code, 200)
+        n_small = len(ctx_small)
+
+        self._create_other_users_recipes(7)  # 10 total other-user recipes
+        with CaptureQueriesContext(connection) as ctx_large:
+            resp = self.client.get("/api/recipes/")
+            self.assertEqual(resp.status_code, 200)
+        n_large = len(ctx_large)
+
+        details = "\n".join(
+            f"  {i+1}. {q['sql'][:120]}"
+            for i, q in enumerate(ctx_large)
+        )
+        self.assertEqual(
+            n_small,
+            n_large,
+            f"Query count grew from {n_small} to {n_large} — N+1 detected!"
+            f"\nQueries for larger set:\n{details}",
+        )
+
+    def test_old_per_object_approach_would_cause_n_plus_1(self):
+        """Demonstrate that calling can_friend_edit_recipes per recipe
+        produces a query count proportional to the number of recipes."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from planner.services_friends import can_friend_edit_recipes
+
+        self._create_other_users_recipes(3)
+        recipes_3 = list(Recipe.objects.select_related("user").all())
+        with CaptureQueriesContext(connection) as ctx3:
+            for r in recipes_3:
+                if r.user_id != self.viewer.id:
+                    can_friend_edit_recipes(self.viewer, r.user)
+        n_queries_3 = len(ctx3)
+
+        self._create_other_users_recipes(5)  # 8 total
+        recipes_8 = list(Recipe.objects.select_related("user").all())
+        with CaptureQueriesContext(connection) as ctx8:
+            for r in recipes_8:
+                if r.user_id != self.viewer.id:
+                    can_friend_edit_recipes(self.viewer, r.user)
+        n_queries_8 = len(ctx8)
+
+        self.assertGreater(
+            n_queries_8,
+            n_queries_3,
+            "Old per-object approach should produce more queries with more recipes",
+        )
+
+
 class MenuApiTests(ApiTestBase):
     def test_menu_get_empty_returns_all_slots(self):
         response = self.client.get("/api/menu/")
