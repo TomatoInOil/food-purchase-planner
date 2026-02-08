@@ -9,13 +9,14 @@ from rest_framework.views import APIView
 
 from planner.models import FriendRequest, Menu, Recipe, UserFriendCode
 from planner.serializers import (
+    EditRecipesRequestSerializer,
     FriendRequestSerializer,
     FriendSerializer,
     ShoppingListRequestSerializer,
     UserFriendCodeSerializer,
 )
 from planner.services import calculate_shopping_list, get_menu_slots
-from planner.services_friends import get_friend_user_or_404
+from planner.services_friends import get_friend_request_between, get_friend_user_or_404
 
 
 class MyFriendCodeView(APIView):
@@ -84,6 +85,9 @@ class FriendsListView(APIView):
                     "username": other.username,
                     "friend_request_id": fr.id,
                     "since": fr.created_at,
+                    "can_edit_recipes": fr.can_edit_recipes_status
+                    == FriendRequest.EDIT_RECIPES_ACCEPTED,
+                    "can_edit_recipes_status": fr.can_edit_recipes_status,
                 }
             )
 
@@ -158,6 +162,126 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         serializer = self.get_serializer(friend_request)
         return Response(serializer.data)
+
+
+class FriendSendEditRecipesRequestView(APIView):
+    """Send a request to enable mutual recipe editing with a friend."""
+
+    def post(self, request, user_id):
+        friend_request = get_friend_request_between(request.user, user_id)
+        if not friend_request:
+            raise ValidationError("Пользователь не является вашим другом")
+
+        if friend_request.can_edit_recipes_status != FriendRequest.EDIT_RECIPES_NONE:
+            raise ValidationError("Запрос на совместное редактирование уже отправлен или принят")
+
+        friend_request.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        friend_request.can_edit_recipes_requested_by = request.user
+        friend_request.save(
+            update_fields=["can_edit_recipes_status", "can_edit_recipes_requested_by"]
+        )
+        return Response({
+            "success": True,
+            "can_edit_recipes_status": friend_request.can_edit_recipes_status,
+        })
+
+
+class FriendRevokeEditRecipesView(APIView):
+    """Revoke mutual recipe editing permission. Either friend can revoke."""
+
+    def post(self, request, user_id):
+        friend_request = get_friend_request_between(request.user, user_id)
+        if not friend_request:
+            raise ValidationError("Пользователь не является вашим другом")
+
+        if friend_request.can_edit_recipes_status == FriendRequest.EDIT_RECIPES_NONE:
+            raise ValidationError("Совместное редактирование не активно")
+
+        friend_request.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_NONE
+        friend_request.can_edit_recipes_requested_by = None
+        friend_request.save(
+            update_fields=["can_edit_recipes_status", "can_edit_recipes_requested_by"]
+        )
+        return Response({
+            "success": True,
+            "can_edit_recipes_status": friend_request.can_edit_recipes_status,
+        })
+
+
+class EditRecipesRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """ViewSet for incoming edit-recipes sharing requests with accept/decline."""
+
+    queryset = FriendRequest.objects.all().select_related(
+        "from_user", "to_user", "can_edit_recipes_requested_by"
+    )
+    serializer_class = EditRecipesRequestSerializer
+
+    def get_queryset(self):
+        base_qs = super().get_queryset()
+        if self.action == "list":
+            return base_qs.filter(
+                status=FriendRequest.STATUS_ACCEPTED,
+                can_edit_recipes_status=FriendRequest.EDIT_RECIPES_PENDING,
+            ).exclude(can_edit_recipes_requested_by=self.request.user)
+        return base_qs
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        items = []
+        for fr in qs:
+            if fr.from_user_id == request.user.id:
+                other = fr.to_user
+            else:
+                other = fr.from_user
+            items.append({
+                "friend_request_id": fr.id,
+                "from_user_id": other.id,
+                "from_username": other.username,
+                "to_user_id": request.user.id,
+                "to_username": request.user.username,
+                "requested_by_id": fr.can_edit_recipes_requested_by_id,
+                "requested_by_username": fr.can_edit_recipes_requested_by.username,
+            })
+        serializer = EditRecipesRequestSerializer(items, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        """Accept a pending edit-recipes sharing request."""
+        friend_request = self.get_object()
+        if not self._is_target_user(request.user, friend_request):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if friend_request.can_edit_recipes_status != FriendRequest.EDIT_RECIPES_PENDING:
+            raise ValidationError("Некорректный статус запроса")
+
+        friend_request.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        friend_request.save(update_fields=["can_edit_recipes_status"])
+        return Response({"success": True, "can_edit_recipes_status": "accepted"})
+
+    @action(detail=True, methods=["post"])
+    def decline(self, request, pk=None):
+        """Decline a pending edit-recipes sharing request."""
+        friend_request = self.get_object()
+        if not self._is_target_user(request.user, friend_request):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if friend_request.can_edit_recipes_status != FriendRequest.EDIT_RECIPES_PENDING:
+            raise ValidationError("Некорректный статус запроса")
+
+        friend_request.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_NONE
+        friend_request.can_edit_recipes_requested_by = None
+        friend_request.save(
+            update_fields=["can_edit_recipes_status", "can_edit_recipes_requested_by"]
+        )
+        return Response({"success": True, "can_edit_recipes_status": "none"})
+
+    @staticmethod
+    def _is_target_user(user, friend_request):
+        """Return True if user is the one who should accept/decline (not the requester)."""
+        return (
+            friend_request.can_edit_recipes_requested_by_id is not None
+            and friend_request.can_edit_recipes_requested_by_id != user.id
+            and user.id in (friend_request.from_user_id, friend_request.to_user_id)
+        )
 
 
 class FriendMenuView(APIView):

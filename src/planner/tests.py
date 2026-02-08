@@ -236,6 +236,250 @@ class RecipeApiTests(ApiTestBase):
         self.assertFalse(Recipe.objects.filter(pk=recipe.id).exists())
 
 
+class RecipeFriendEditorTests(ApiTestBase):
+    """Verify that mutual edit-recipes sharing works correctly."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = User.objects.create_user(
+            username="owner", password="pass", email="owner@example.com"
+        )
+        self.ing = Ingredient.objects.create(
+            user=self.owner, name="Tomato", calories=18, protein=1, fat=0, carbs=4
+        )
+        self.recipe = Recipe.objects.create(
+            user=self.owner, name="Soup", description="d", instructions="i"
+        )
+        RecipeIngredient.objects.create(
+            recipe=self.recipe, ingredient=self.ing, weight_grams=100
+        )
+
+    def _grant_friend_edit(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
+            can_edit_recipes_requested_by=self.user,
+        )
+
+    def test_friend_editor_can_update_recipe(self):
+        self._grant_friend_edit()
+        body = {
+            "name": "Updated Soup",
+            "description": "new d",
+            "instructions": "new i",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 200}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "Updated Soup")
+
+    def test_friend_editor_can_delete_recipe(self):
+        self._grant_friend_edit()
+        response = self.client.delete(f"/api/recipes/{self.recipe.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertFalse(Recipe.objects.filter(pk=self.recipe.id).exists())
+
+    def test_non_friend_cannot_update_recipe(self):
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_friend_cannot_delete_recipe(self):
+        response = self.client.delete(f"/api/recipes/{self.recipe.id}/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_friend_without_edit_permission_cannot_update(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_NONE,
+        )
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_pending_edit_recipes_does_not_grant_permission(self):
+        """A pending sharing request must NOT grant edit access."""
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_PENDING,
+            can_edit_recipes_requested_by=self.user,
+        )
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_accepted_edit_recipes_is_bidirectional(self):
+        """Once accepted, both friends can edit each other's recipes."""
+        self._grant_friend_edit()
+        my_recipe = Recipe.objects.create(
+            user=self.user, name="My Soup", description="d", instructions="i"
+        )
+        RecipeIngredient.objects.create(
+            recipe=my_recipe, ingredient=self.ing, weight_grams=100
+        )
+
+        owner_client = Client()
+        owner_client.force_login(self.owner)
+        body = {
+            "name": "Updated My Soup",
+            "description": "new d",
+            "instructions": "new i",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 200}],
+        }
+        response = owner_client.put(
+            f"/api/recipes/{my_recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "Updated My Soup")
+
+
+class RecipeListQueryCountTests(TestCase):
+    """Prove that recipe list does NOT trigger N+1 queries for can_edit."""
+
+    _user_seq = 0
+
+    def setUp(self):
+        self.viewer = User.objects.create_user(
+            username="viewer", password="pass", email="viewer@test.com"
+        )
+        self.client = Client()
+        self.client.force_login(self.viewer)
+
+    def _create_other_users_recipes(self, count):
+        """Create *count* recipes owned by distinct other users."""
+        for _ in range(count):
+            RecipeListQueryCountTests._user_seq += 1
+            seq = RecipeListQueryCountTests._user_seq
+            other = User.objects.create_user(
+                username=f"other_{seq}", password="pass", email=f"o{seq}@test.com"
+            )
+            ing = Ingredient.objects.create(
+                user=other,
+                name=f"Ing_{seq}",
+                calories=1,
+                protein=1,
+                fat=1,
+                carbs=1,
+            )
+            recipe = Recipe.objects.create(
+                user=other,
+                name=f"Recipe_{seq}",
+                description="",
+                instructions="",
+            )
+            RecipeIngredient.objects.create(
+                recipe=recipe, ingredient=ing, weight_grams=100
+            )
+
+    def _count_list_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get("/api/recipes/")
+            self.assertEqual(response.status_code, 200)
+        return len(ctx)
+
+    def test_query_count_does_not_grow_with_recipe_count(self):
+        """The number of DB queries must stay constant regardless of how many
+        other-users' recipes exist — proving the N+1 is eliminated."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._create_other_users_recipes(3)
+        with CaptureQueriesContext(connection) as ctx_small:
+            resp = self.client.get("/api/recipes/")
+            self.assertEqual(resp.status_code, 200)
+        n_small = len(ctx_small)
+
+        self._create_other_users_recipes(7)  # 10 total other-user recipes
+        with CaptureQueriesContext(connection) as ctx_large:
+            resp = self.client.get("/api/recipes/")
+            self.assertEqual(resp.status_code, 200)
+        n_large = len(ctx_large)
+
+        details = "\n".join(
+            f"  {i+1}. {q['sql'][:120]}"
+            for i, q in enumerate(ctx_large)
+        )
+        self.assertEqual(
+            n_small,
+            n_large,
+            f"Query count grew from {n_small} to {n_large} — N+1 detected!"
+            f"\nQueries for larger set:\n{details}",
+        )
+
+    def test_old_per_object_approach_would_cause_n_plus_1(self):
+        """Demonstrate that calling can_friend_edit_recipes per recipe
+        produces a query count proportional to the number of recipes."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from planner.services_friends import can_friend_edit_recipes
+
+        self._create_other_users_recipes(3)
+        recipes_3 = list(Recipe.objects.select_related("user").all())
+        with CaptureQueriesContext(connection) as ctx3:
+            for r in recipes_3:
+                if r.user_id != self.viewer.id:
+                    can_friend_edit_recipes(self.viewer, r.user)
+        n_queries_3 = len(ctx3)
+
+        self._create_other_users_recipes(5)  # 8 total
+        recipes_8 = list(Recipe.objects.select_related("user").all())
+        with CaptureQueriesContext(connection) as ctx8:
+            for r in recipes_8:
+                if r.user_id != self.viewer.id:
+                    can_friend_edit_recipes(self.viewer, r.user)
+        n_queries_8 = len(ctx8)
+
+        self.assertGreater(
+            n_queries_8,
+            n_queries_3,
+            "Old per-object approach should produce more queries with more recipes",
+        )
+
+
 class MenuApiTests(ApiTestBase):
     def test_menu_get_empty_returns_all_slots(self):
         response = self.client.get("/api/menu/")
@@ -684,3 +928,149 @@ class FriendsApiTests(ApiTestBase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
+
+
+class EditRecipesRequestFlowTests(ApiTestBase):
+    """Test the full send → accept/decline → revoke flow for edit-recipes requests."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        self.fr = FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        self.other_client = Client()
+        self.other_client.force_login(self.other)
+
+    def test_send_edit_recipes_request(self):
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/send-edit-recipes-request/"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["can_edit_recipes_status"], "pending")
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_PENDING
+        )
+        self.assertEqual(self.fr.can_edit_recipes_requested_by_id, self.user.id)
+
+    def test_send_duplicate_request_400(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/send-edit-recipes-request/"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_incoming_edit_recipes_requests_list(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.get("/api/edit-recipes-requests/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["friend_request_id"], self.fr.id)
+        self.assertEqual(data[0]["requested_by_id"], self.user.id)
+
+    def test_sender_does_not_see_own_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.get("/api/edit-recipes-requests/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 0)
+
+    def test_accept_edit_recipes_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/accept/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_ACCEPTED
+        )
+
+    def test_decline_edit_recipes_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/decline/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+        self.assertIsNone(self.fr.can_edit_recipes_requested_by)
+
+    def test_sender_cannot_accept_own_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/accept/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_revoke_edit_recipes(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/revoke-edit-recipes/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+
+    def test_other_user_can_revoke_too(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/friends/{self.user.id}/revoke-edit-recipes/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+
+    def test_friends_list_shows_edit_recipes_status(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.get("/api/friends/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertTrue(data[0]["can_edit_recipes"])
+        self.assertEqual(data[0]["can_edit_recipes_status"], "accepted")

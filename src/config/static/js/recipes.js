@@ -102,6 +102,7 @@ async function saveRecipe(event) {
     const form = event.target;
     const rows = document.querySelectorAll('.ingredient-row');
     const recipeIngredients = [];
+    const isEditing = Boolean(editingRecipeId);
 
     rows.forEach(row => {
         const ingredientId = row.querySelector('.ingredient-select').value;
@@ -124,12 +125,12 @@ async function saveRecipe(event) {
     };
 
     try {
-        if (editingRecipeId) {
+        if (isEditing) {
             await apiFetch(`/api/recipes/${editingRecipeId}/`, { method: 'PUT', body });
         } else {
             await apiFetch('/api/recipes/', { method: 'POST', body });
         }
-        showError('Рецепт успешно сохранён!');
+        showToast(isEditing ? 'Рецепт обновлён' : 'Рецепт создан');
         clearRecipeForm();
         editingRecipeId = null;
         recipes = await apiFetch('/api/recipes/');
@@ -151,7 +152,7 @@ function clearRecipeForm() {
 
 function loadRecipeForEdit(recipeId) {
     const recipe = recipes.find(r => r.id === recipeId);
-    if (!recipe || !recipe.is_owner) return;
+    if (!recipe || !recipe.can_edit) return;
     editingRecipeId = recipe.id;
     const form = document.getElementById('recipeForm');
     form.recipeName.value = recipe.name;
@@ -184,7 +185,7 @@ function renderRecipes() {
     container.innerHTML = recipes.map(recipe => {
         const cals = (recipe.total_calories || 0).toFixed(0);
         const prot = (recipe.total_protein || 0).toFixed(0);
-        const actions = recipe.is_owner
+        const actions = recipe.can_edit
             ? `<button class="btn btn-secondary btn-small" onclick="event.stopPropagation(); loadRecipeForEdit(${recipe.id})">Редактировать</button>
                <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>`
             : '';
@@ -223,7 +224,7 @@ function showRecipeDetails(recipeId) {
         `<li>${ri.ingredient_name} - ${ri.weight_grams}г</li>`
     ).join('');
 
-    const editBtn = recipe.is_owner
+    const editBtn = recipe.can_edit
         ? `<button class="btn btn-primary" onclick="closeRecipeModal(); loadRecipeForEdit(${recipe.id})">Редактировать</button>`
         : '';
 
