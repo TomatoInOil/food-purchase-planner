@@ -102,6 +102,7 @@ async function saveRecipe(event) {
     const form = event.target;
     const rows = document.querySelectorAll('.ingredient-row');
     const recipeIngredients = [];
+    const isEditing = Boolean(editingRecipeId);
 
     rows.forEach(row => {
         const ingredientId = row.querySelector('.ingredient-select').value;
@@ -124,12 +125,12 @@ async function saveRecipe(event) {
     };
 
     try {
-        if (editingRecipeId) {
+        if (isEditing) {
             await apiFetch(`/api/recipes/${editingRecipeId}/`, { method: 'PUT', body });
         } else {
             await apiFetch('/api/recipes/', { method: 'POST', body });
         }
-        showError('Рецепт успешно сохранён!');
+        showToast(isEditing ? 'Рецепт обновлён' : 'Рецепт создан');
         clearRecipeForm();
         editingRecipeId = null;
         recipes = await apiFetch('/api/recipes/');
