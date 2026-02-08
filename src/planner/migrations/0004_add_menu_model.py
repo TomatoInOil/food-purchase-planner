@@ -1,4 +1,4 @@
-"""Add Menu model and migrate MenuSlot from user FK to menu FK."""
+"""Add Menu model, nullable FK on MenuSlot, and migrate existing data."""
 
 import django.db.models.deletion
 from django.conf import settings
@@ -69,33 +69,5 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             create_menus_for_existing_users,
             migrations.RunPython.noop,
-        ),
-        migrations.RemoveConstraint(
-            model_name="menuslot",
-            name="unique_user_day_meal",
-        ),
-        migrations.RemoveField(
-            model_name="menuslot",
-            name="user",
-        ),
-        migrations.AlterField(
-            model_name="menuslot",
-            name="menu",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name="slots",
-                to="planner.menu",
-            ),
-        ),
-        migrations.AlterModelOptions(
-            name="menuslot",
-            options={"ordering": ["menu", "day_of_week", "meal_type"]},
-        ),
-        migrations.AddConstraint(
-            model_name="menuslot",
-            constraint=models.UniqueConstraint(
-                fields=("menu", "day_of_week", "meal_type"),
-                name="unique_menu_day_meal",
-            ),
         ),
     ]
