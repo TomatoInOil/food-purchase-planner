@@ -1,4 +1,4 @@
-"""Replace MenuSlot.user FK with non-nullable MenuSlot.menu FK."""
+"""Drop old user FK and constraint, make menu FK non-nullable."""
 
 import django.db.models.deletion
 from django.db import migrations, models
@@ -30,12 +30,5 @@ class Migration(migrations.Migration):
         migrations.AlterModelOptions(
             name="menuslot",
             options={"ordering": ["menu", "day_of_week", "meal_type"]},
-        ),
-        migrations.AddConstraint(
-            model_name="menuslot",
-            constraint=models.UniqueConstraint(
-                fields=("menu", "day_of_week", "meal_type"),
-                name="unique_menu_day_meal",
-            ),
         ),
     ]
