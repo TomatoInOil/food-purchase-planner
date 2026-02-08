@@ -111,12 +111,19 @@ class RecipeSerializer(serializers.ModelSerializer):
         return request and request.user.id == obj.user_id
 
     def get_can_edit(self, obj):
-        """Return True if the current user is the owner or a friend with edit permission."""
+        """Return True if the current user is the owner or a friend with edit permission.
+
+        Uses a pre-computed set of owner IDs from the serializer context to
+        avoid an extra DB query per recipe (N+1 prevention).
+        """
         request = self.context.get("request")
         if not request:
             return False
         if request.user.id == obj.user_id:
             return True
+        editable_owner_ids = self.context.get("editable_owner_ids")
+        if editable_owner_ids is not None:
+            return obj.user_id in editable_owner_ids
         from planner.services_friends import can_friend_edit_recipes
 
         return can_friend_edit_recipes(request.user, obj.user)

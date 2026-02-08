@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 
 from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
 from planner.services import calculate_shopping_list_for_user
+from planner.services_friends import get_editable_owner_ids
 from planner.permissions import (
     IsOwnerOrFriendEditorOrReadOnly,
     IsOwnerOrReadOnly,
@@ -91,6 +92,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["request"] = self.request
+        if self.request and self.request.user.is_authenticated:
+            context["editable_owner_ids"] = get_editable_owner_ids(
+                self.request.user
+            )
         return context
 
     def list(self, request, *args, **kwargs):
@@ -102,7 +107,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
-        out_serializer = RecipeSerializer(recipe, context={"request": request})
+        out_serializer = RecipeSerializer(
+            recipe, context=self.get_serializer_context()
+        )
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -114,7 +121,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             Recipe.objects.prefetch_related("recipe_ingredients__ingredient").get(
                 pk=recipe.pk
             ),
-            context={"request": request},
+            context=self.get_serializer_context(),
         )
         return Response(out_serializer.data)
 
