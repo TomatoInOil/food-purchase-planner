@@ -1,7 +1,6 @@
-"""Drop old user FK and constraint, make menu FK non-nullable."""
+"""Drop old unique constraint and user FK from MenuSlot."""
 
-import django.db.models.deletion
-from django.db import migrations, models
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
@@ -17,18 +16,5 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name="menuslot",
             name="user",
-        ),
-        migrations.AlterField(
-            model_name="menuslot",
-            name="menu",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name="slots",
-                to="planner.menu",
-            ),
-        ),
-        migrations.AlterModelOptions(
-            name="menuslot",
-            options={"ordering": ["menu", "day_of_week", "meal_type"]},
         ),
     ]

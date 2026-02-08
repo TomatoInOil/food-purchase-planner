@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("planner", "0005_menuslot_replace_user_with_menu"),
+        ("planner", "0006_menuslot_menu_not_null"),
     ]
 
     operations = [
