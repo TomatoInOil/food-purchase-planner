@@ -235,6 +235,94 @@ class RecipeApiTests(ApiTestBase):
         self.assertFalse(Recipe.objects.filter(pk=recipe.id).exists())
 
 
+class RecipeFriendEditorTests(ApiTestBase):
+    """Verify that friend editors with can_edit_recipes=True can update/delete recipes."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = User.objects.create_user(
+            username="owner", password="pass", email="owner@example.com"
+        )
+        self.ing = Ingredient.objects.create(
+            user=self.owner, name="Tomato", calories=18, protein=1, fat=0, carbs=4
+        )
+        self.recipe = Recipe.objects.create(
+            user=self.owner, name="Soup", description="d", instructions="i"
+        )
+        RecipeIngredient.objects.create(
+            recipe=self.recipe, ingredient=self.ing, weight_grams=100
+        )
+
+    def _grant_friend_edit(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes=True,
+        )
+
+    def test_friend_editor_can_update_recipe(self):
+        self._grant_friend_edit()
+        body = {
+            "name": "Updated Soup",
+            "description": "new d",
+            "instructions": "new i",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 200}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "Updated Soup")
+
+    def test_friend_editor_can_delete_recipe(self):
+        self._grant_friend_edit()
+        response = self.client.delete(f"/api/recipes/{self.recipe.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertFalse(Recipe.objects.filter(pk=self.recipe.id).exists())
+
+    def test_non_friend_cannot_update_recipe(self):
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_friend_cannot_delete_recipe(self):
+        response = self.client.delete(f"/api/recipes/{self.recipe.id}/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_friend_without_edit_permission_cannot_update(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes=False,
+        )
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+
 class MenuApiTests(ApiTestBase):
     def test_menu_get_empty_returns_all_slots(self):
         response = self.client.get("/api/menu/")
