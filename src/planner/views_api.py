@@ -186,6 +186,17 @@ class MenuDetailView(APIView):
         return Response({"status": "ok"})
 
 
+class MenuSetPrimaryView(APIView):
+    """Set a specific menu as the user's primary (visible to friends)."""
+
+    def post(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        Menu.objects.filter(user=request.user, is_primary=True).update(is_primary=False)
+        menu.is_primary = True
+        menu.save(update_fields=["is_primary"])
+        return Response({"status": "ok"})
+
+
 class MenuView(APIView):
     """Legacy endpoint: operates on the user's first (oldest) menu."""
 

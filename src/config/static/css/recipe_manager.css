@@ -861,6 +861,31 @@ textarea {
     opacity: 1;
 }
 
+.btn-primary-star {
+    color: var(--warning);
+    font-size: 1.1em !important;
+    opacity: 0.5;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.btn-primary-star:hover {
+    opacity: 0.9;
+    transform: scale(1.2);
+}
+
+.btn-primary-star.active {
+    opacity: 1;
+    color: var(--warning);
+}
+
+.menu-sidebar-item.active .btn-primary-star {
+    color: var(--white);
+}
+
+.menu-sidebar-item.active .btn-primary-star.active {
+    color: var(--warning);
+}
+
 .menu-sidebar-toggle {
     display: none;
     width: 100%;

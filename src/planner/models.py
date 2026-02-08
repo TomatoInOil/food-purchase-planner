@@ -120,6 +120,7 @@ class Menu(models.Model):
         related_name="menus",
     )
     name = models.CharField(max_length=200, default="Меню на неделю")
+    is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

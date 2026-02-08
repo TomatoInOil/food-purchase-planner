@@ -36,6 +36,11 @@ function buildMenuListApiUrl() {
     return '/api/menus/';
 }
 
+function _findPrimaryOrFirstId(menuList) {
+    var primary = menuList.find(function (m) { return m.is_primary; });
+    return primary ? primary.id : menuList[0].id;
+}
+
 function _initEmptyWeekMenu() {
     weekMenu = {};
     for (var d = 0; d < 7; d++) {
@@ -70,6 +75,15 @@ function renderMenuSidebar() {
         if (editable) {
             var actions = document.createElement('span');
             actions.className = 'menu-sidebar-item-actions';
+
+            if (!isViewingFriendMenu()) {
+                var primaryBtn = document.createElement('button');
+                primaryBtn.className = 'btn-icon btn-primary-star' + (m.is_primary ? ' active' : '');
+                primaryBtn.title = m.is_primary ? 'Основное меню' : 'Сделать основным';
+                primaryBtn.textContent = m.is_primary ? '★' : '☆';
+                primaryBtn.onclick = function (e) { e.stopPropagation(); setPrimaryMenu(m.id); };
+                actions.appendChild(primaryBtn);
+            }
 
             var renameBtn = document.createElement('button');
             renameBtn.className = 'btn-icon';
@@ -263,6 +277,17 @@ async function deleteMenu(menuId) {
     }
 }
 
+async function setPrimaryMenu(menuId) {
+    try {
+        await apiFetch('/api/menus/' + menuId + '/set-primary/', { method: 'POST' });
+        menus.forEach(function (m) { m.is_primary = (m.id === menuId); });
+        renderMenuSidebar();
+        showToast('Основное меню установлено');
+    } catch (e) {
+        showError(e.message || 'Ошибка установки основного меню');
+    }
+}
+
 // --- Friend menu owner select ---
 
 function populateMenuOwnerSelect() {
@@ -327,7 +352,7 @@ async function _loadFriendMenus(friendId) {
         friendCanEditMenus = response.can_edit || false;
 
         if (friendMenus.length > 0) {
-            activeFriendMenuId = friendMenus[0].id;
+            activeFriendMenuId = _findPrimaryOrFirstId(friendMenus);
             var menuData = await apiFetch('/api/friends/' + friendId + '/menus/' + activeFriendMenuId + '/');
             weekMenu = menuData;
         } else {
