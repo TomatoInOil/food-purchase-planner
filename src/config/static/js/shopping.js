@@ -21,6 +21,9 @@ async function generateShoppingList() {
 
     if (currentMenuOwnerId !== null) {
         url = '/api/friends/' + currentMenuOwnerId + '/shopping-list/';
+        if (activeFriendMenuId) {
+            body.menu_id = activeFriendMenuId;
+        }
     } else {
         url = '/api/shopping-list/';
         if (activeMenuId) {

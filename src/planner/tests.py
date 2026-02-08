@@ -930,6 +930,200 @@ class FriendsApiTests(ApiTestBase):
         self.assertIn("error", response.json())
 
 
+class FriendMenuEditTests(ApiTestBase):
+    """Verify that friends with accepted edit permission can CRUD each other's menus."""
+
+    def setUp(self):
+        super().setUp()
+        self.friend = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        self.friend_client = Client()
+        self.friend_client.force_login(self.friend)
+
+    def _make_friends_with_edit(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.friend,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
+            can_edit_recipes_requested_by=self.user,
+        )
+
+    def _make_friends_without_edit(self):
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.friend,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_NONE,
+        )
+
+    def test_friend_menus_list_returns_menus_and_can_edit_true(self):
+        self._make_friends_with_edit()
+        Menu.objects.create(user=self.friend, name="Friend Menu A")
+        Menu.objects.create(user=self.friend, name="Friend Menu B")
+
+        response = self.client.get(f"/api/friends/{self.friend.id}/menus/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["can_edit"])
+        self.assertEqual(len(data["menus"]), 2)
+        self.assertEqual(data["menus"][0]["name"], "Friend Menu A")
+
+    def test_friend_menus_list_returns_can_edit_false_without_permission(self):
+        self._make_friends_without_edit()
+        response = self.client.get(f"/api/friends/{self.friend.id}/menus/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["can_edit"])
+
+    def test_friend_menus_list_400_when_not_friends(self):
+        stranger = User.objects.create_user(
+            username="stranger", password="pass", email="stranger@example.com"
+        )
+        response = self.client.get(f"/api/friends/{stranger.id}/menus/")
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_friend_menu_with_edit_permission(self):
+        self._make_friends_with_edit()
+        response = self.client.post(
+            f"/api/friends/{self.friend.id}/menus/",
+            data={"name": "New Menu"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["name"], "New Menu")
+        self.assertTrue(Menu.objects.filter(user=self.friend, name="New Menu").exists())
+
+    def test_create_friend_menu_without_edit_permission_403(self):
+        self._make_friends_without_edit()
+        response = self.client.post(
+            f"/api/friends/{self.friend.id}/menus/",
+            data={"name": "Hacked Menu"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_get_friend_menu_slots(self):
+        self._make_friends_with_edit()
+        menu = Menu.objects.create(user=self.friend, name="Test")
+        recipe = Recipe.objects.create(
+            user=self.friend, name="R", description="", instructions=""
+        )
+        MenuSlot.objects.create(menu=menu, day_of_week=0, meal_type=0, recipe=recipe)
+
+        response = self.client.get(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["0-0"], recipe.id)
+
+    def test_update_friend_menu_slots_with_edit_permission(self):
+        self._make_friends_with_edit()
+        menu = Menu.objects.create(user=self.friend, name="Test")
+        recipe = Recipe.objects.create(
+            user=self.friend, name="R", description="", instructions=""
+        )
+
+        response = self.client.put(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
+            data={"0-0": recipe.id, "1-1": recipe.id},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MenuSlot.objects.filter(menu=menu).count(), 2)
+
+    def test_update_friend_menu_slots_without_edit_permission_403(self):
+        self._make_friends_without_edit()
+        menu = Menu.objects.create(user=self.friend, name="Test")
+        recipe = Recipe.objects.create(
+            user=self.friend, name="R", description="", instructions=""
+        )
+
+        response = self.client.put(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
+            data={"0-0": recipe.id},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_rename_friend_menu_with_edit_permission(self):
+        self._make_friends_with_edit()
+        menu = Menu.objects.create(user=self.friend, name="Old Name")
+
+        response = self.client.patch(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
+            data={"name": "New Name"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "New Name")
+        menu.refresh_from_db()
+        self.assertEqual(menu.name, "New Name")
+
+    def test_rename_friend_menu_without_edit_permission_403(self):
+        self._make_friends_without_edit()
+        menu = Menu.objects.create(user=self.friend, name="Old Name")
+
+        response = self.client.patch(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
+            data={"name": "Hacked Name"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_friend_menu_with_edit_permission(self):
+        self._make_friends_with_edit()
+        menu = Menu.objects.create(user=self.friend, name="To Delete")
+
+        response = self.client.delete(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Menu.objects.filter(pk=menu.id).exists())
+
+    def test_delete_friend_menu_without_edit_permission_403(self):
+        self._make_friends_without_edit()
+        menu = Menu.objects.create(user=self.friend, name="Protected")
+
+        response = self.client.delete(
+            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_edit_is_bidirectional(self):
+        """Both friends can edit each other's menus when edit is accepted."""
+        self._make_friends_with_edit()
+        Menu.objects.create(user=self.user, name="My Menu")
+        Menu.objects.create(user=self.friend, name="Friend Menu")
+
+        response1 = self.client.post(
+            f"/api/friends/{self.friend.id}/menus/",
+            data={"name": "Created by user"},
+            content_type="application/json",
+        )
+        self.assertEqual(response1.status_code, 201)
+
+        response2 = self.friend_client.post(
+            f"/api/friends/{self.user.id}/menus/",
+            data={"name": "Created by friend"},
+            content_type="application/json",
+        )
+        self.assertEqual(response2.status_code, 201)
+
+    def test_friend_menu_detail_404_for_wrong_menu(self):
+        """Accessing a menu that doesn't belong to the friend returns 404."""
+        self._make_friends_with_edit()
+        own_menu = Menu.objects.create(user=self.user, name="My Menu")
+
+        response = self.client.get(
+            f"/api/friends/{self.friend.id}/menus/{own_menu.id}/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+
 class EditRecipesRequestFlowTests(ApiTestBase):
     """Test the full send → accept/decline → revoke flow for edit-recipes requests."""
 

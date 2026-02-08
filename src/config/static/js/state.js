@@ -10,3 +10,6 @@ let currentMenuOwnerId = null;
 let friendMenuRecipes = [];
 let menus = [];
 let activeMenuId = null;
+let friendMenus = [];
+let activeFriendMenuId = null;
+let friendCanEditMenus = false;

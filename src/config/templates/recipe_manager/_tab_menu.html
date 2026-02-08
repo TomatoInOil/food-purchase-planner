@@ -5,8 +5,8 @@
         </button>
         <aside class="menu-sidebar" id="menuSidebar">
             <div class="menu-sidebar-header">
-                <h3>Мои меню</h3>
-                <button class="btn btn-primary btn-small" onclick="createNewMenu()">+ Новое меню</button>
+                <h3 id="menuSidebarTitle">Мои меню</h3>
+                <button id="menuSidebarCreateBtn" class="btn btn-primary btn-small" onclick="createNewMenu()">+ Новое меню</button>
             </div>
             <div class="menu-sidebar-list" id="menuSidebarList">
             </div>
@@ -16,7 +16,7 @@
                 <h2 class="card-title" id="activeMenuTitle">Планирование меню на неделю</h2>
                 <div class="form-group menu-owner-select">
                     <label for="menuOwnerSelect">Меню пользователя:</label>
-                    <div class="form-help">Вы можете добавить пользователя в друзья и посмотреть его меню, а также сформировать список покупок к нему.</div>
+                    <div class="form-help">Вы можете добавить пользователя в друзья и посмотреть его меню, а также сформировать список покупок к нему. При совместном редактировании вы можете редактировать меню друг друга.</div>
                     <select id="menuOwnerSelect" onchange="handleMenuOwnerChange()">
                         <option value="">Моё меню</option>
                     </select>
