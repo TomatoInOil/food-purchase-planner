@@ -28,12 +28,26 @@ def get_friend_user_or_404(request_user, friend_id):
 def can_friend_edit_recipes(editor_user, recipe_owner):
     """
     Check if editor_user has permission to edit recipe_owner's recipes.
-    Returns True if an accepted friend request with can_edit_recipes=True exists.
+
+    Returns True only when both users have mutually agreed to shared editing,
+    i.e. an accepted friend request exists with can_edit_recipes_status='accepted'.
     """
     return FriendRequest.objects.filter(
         status=FriendRequest.STATUS_ACCEPTED,
-        can_edit_recipes=True,
+        can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
     ).filter(
         models.Q(from_user=editor_user, to_user=recipe_owner)
         | models.Q(from_user=recipe_owner, to_user=editor_user)
     ).exists()
+
+
+def get_friend_request_between(user_a, user_b):
+    """
+    Return the accepted FriendRequest between two users, or None.
+    """
+    return FriendRequest.objects.filter(
+        status=FriendRequest.STATUS_ACCEPTED,
+    ).filter(
+        models.Q(from_user=user_a, to_user=user_b)
+        | models.Q(from_user=user_b, to_user=user_a)
+    ).select_related("from_user", "to_user").first()

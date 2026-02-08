@@ -303,3 +303,16 @@ class FriendSerializer(serializers.Serializer):
     friend_request_id = serializers.IntegerField()
     since = serializers.DateTimeField()
     can_edit_recipes = serializers.BooleanField()
+    can_edit_recipes_status = serializers.CharField()
+
+
+class EditRecipesRequestSerializer(serializers.Serializer):
+    """Serializer for pending edit-recipes sharing requests."""
+
+    friend_request_id = serializers.IntegerField()
+    from_user_id = serializers.IntegerField()
+    from_username = serializers.CharField()
+    to_user_id = serializers.IntegerField()
+    to_username = serializers.CharField()
+    requested_by_id = serializers.IntegerField()
+    requested_by_username = serializers.CharField()

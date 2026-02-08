@@ -11,11 +11,14 @@
 
 let friends = [];
 let friendRequests = [];
+let editRecipesRequests = [];
 let currentFriendRequestId = null;
 let currentFriendRemoveId = null;
 let currentFriendRequestName = '';
 let currentFriendRemoveName = '';
 let currentFriendCanEditRecipes = false;
+let currentFriendEditRecipesStatus = 'none';
+let currentEditRecipesRequestId = null;
 
 // High-level: load all data for the Friends tab.
 async function loadFriendsTabData() {
@@ -28,6 +31,7 @@ async function loadFriendsTabData() {
 
         friends = await apiFetch('/api/friends/');
         friendRequests = await apiFetch('/api/friend-requests/');
+        editRecipesRequests = await apiFetch('/api/edit-recipes-requests/');
 
         renderFriends();
         renderFriendRequests();
@@ -168,10 +172,16 @@ function renderFriends() {
 
         li.appendChild(nameSpan);
 
-        if (friend.can_edit_recipes) {
+        const editStatus = friend.can_edit_recipes_status || 'none';
+        if (editStatus === 'accepted') {
             const badge = document.createElement('span');
             badge.className = 'friend-edit-badge';
             badge.textContent = 'совместное редактирование';
+            li.appendChild(badge);
+        } else if (editStatus === 'pending') {
+            const badge = document.createElement('span');
+            badge.className = 'friend-edit-badge friend-edit-badge--pending';
+            badge.textContent = 'запрос на редактирование';
             li.appendChild(badge);
         }
 
@@ -188,7 +198,7 @@ function renderFriends() {
     });
 }
 
-// Medium-level: render incoming friend requests.
+// Medium-level: render incoming friend requests and edit-recipes requests.
 function renderFriendRequests() {
     const listEl = document.getElementById('friendRequestsList');
     if (!listEl) {
@@ -197,25 +207,45 @@ function renderFriendRequests() {
 
     listEl.innerHTML = '';
 
-    if (!friendRequests || friendRequests.length === 0) {
-        return;
+    if (friendRequests && friendRequests.length > 0) {
+        friendRequests.forEach((req) => {
+            const li = document.createElement('li');
+            li.className = 'friend-item';
+            li.textContent = req.from_username || '';
+            if (req.id !== undefined && req.id !== null) {
+                li.dataset.requestId = String(req.id);
+            }
+            if (req.from_username) {
+                li.dataset.fromUsername = req.from_username;
+            }
+            li.onclick = function () {
+                openFriendRequestFromList(req);
+            };
+            listEl.appendChild(li);
+        });
     }
 
-    friendRequests.forEach((req) => {
-        const li = document.createElement('li');
-        li.className = 'friend-item';
-        li.textContent = req.from_username || '';
-        if (req.id !== undefined && req.id !== null) {
-            li.dataset.requestId = String(req.id);
-        }
-        if (req.from_username) {
-            li.dataset.fromUsername = req.from_username;
-        }
-        li.onclick = function () {
-            openFriendRequestFromList(req);
-        };
-        listEl.appendChild(li);
-    });
+    if (editRecipesRequests && editRecipesRequests.length > 0) {
+        editRecipesRequests.forEach((req) => {
+            const li = document.createElement('li');
+            li.className = 'friend-item friend-item--edit-request';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = req.from_username || '';
+            li.appendChild(nameSpan);
+
+            const badge = document.createElement('span');
+            badge.className = 'friend-edit-badge friend-edit-badge--pending';
+            badge.textContent = 'совместное редактирование';
+            li.appendChild(badge);
+
+            li.dataset.requestId = String(req.friend_request_id);
+            li.onclick = function () {
+                openEditRecipesRequestFromList(req);
+            };
+            listEl.appendChild(li);
+        });
+    }
 }
 
 // Medium-level: open request modal from list item.
@@ -236,11 +266,22 @@ function openFriendActionsFromList(friend) {
     currentFriendRemoveId = friend.user_id;
     currentFriendRemoveName = friend.username || '';
     currentFriendCanEditRecipes = !!friend.can_edit_recipes;
-    openFriendActionsModal(currentFriendRemoveName, currentFriendCanEditRecipes);
+    currentFriendEditRecipesStatus = friend.can_edit_recipes_status || 'none';
+    openFriendActionsModal(currentFriendRemoveName, currentFriendEditRecipesStatus);
 }
 
-// High-level: toggle friend recipe editing permission.
-async function handleToggleEditRecipes() {
+// Medium-level: open edit-recipes request modal from list item.
+function openEditRecipesRequestFromList(req) {
+    if (!req) {
+        return;
+    }
+    currentEditRecipesRequestId = req.friend_request_id;
+    currentFriendRequestName = req.from_username || '';
+    openEditRecipesRequestModal(currentFriendRequestName);
+}
+
+// High-level: send edit-recipes sharing request to a friend.
+async function handleSendEditRecipesRequest() {
     const userId = currentFriendRemoveId;
     if (!userId) {
         showError('Не выбран друг');
@@ -248,24 +289,96 @@ async function handleToggleEditRecipes() {
     }
 
     try {
-        const result = await apiFetch(`/api/friends/${userId}/toggle-edit-recipes/`, {
+        await apiFetch(`/api/friends/${userId}/send-edit-recipes-request/`, {
             method: 'POST'
         });
-        const newState = result.can_edit_recipes;
-        showToast(newState
-            ? 'Совместное редактирование рецептов включено'
-            : 'Совместное редактирование рецептов отключено'
-        );
+        showToast('Запрос на совместное редактирование отправлен');
+
+        friends = await apiFetch('/api/friends/');
+        renderFriends();
+    } catch (e) {
+        showError(e.message || 'Не удалось отправить запрос');
+    } finally {
+        closeFriendActionsModal();
+        currentFriendRemoveId = null;
+    }
+}
+
+// High-level: revoke edit-recipes sharing with a friend.
+async function handleRevokeEditRecipes() {
+    const userId = currentFriendRemoveId;
+    if (!userId) {
+        showError('Не выбран друг');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/friends/${userId}/revoke-edit-recipes/`, {
+            method: 'POST'
+        });
+        showToast('Совместное редактирование рецептов отключено');
 
         friends = await apiFetch('/api/friends/');
         renderFriends();
         recipes = await apiFetch('/api/recipes/');
         renderRecipes();
     } catch (e) {
-        showError(e.message || 'Не удалось изменить настройку');
+        showError(e.message || 'Не удалось отключить совместное редактирование');
     } finally {
         closeFriendActionsModal();
         currentFriendRemoveId = null;
+    }
+}
+
+// High-level: accept edit-recipes sharing request.
+async function handleEditRecipesRequestAccept() {
+    const requestId = currentEditRecipesRequestId;
+    if (!requestId) {
+        showError('Не выбран запрос');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/edit-recipes-requests/${requestId}/accept/`, {
+            method: 'POST'
+        });
+        showToast('Совместное редактирование рецептов включено');
+
+        friends = await apiFetch('/api/friends/');
+        editRecipesRequests = await apiFetch('/api/edit-recipes-requests/');
+        renderFriends();
+        renderFriendRequests();
+        recipes = await apiFetch('/api/recipes/');
+        renderRecipes();
+    } catch (e) {
+        showError(e.message || 'Не удалось принять запрос');
+    } finally {
+        closeEditRecipesRequestModal();
+        currentEditRecipesRequestId = null;
+    }
+}
+
+// High-level: decline edit-recipes sharing request.
+async function handleEditRecipesRequestDecline() {
+    const requestId = currentEditRecipesRequestId;
+    if (!requestId) {
+        showError('Не выбран запрос');
+        return;
+    }
+
+    try {
+        await apiFetch(`/api/edit-recipes-requests/${requestId}/decline/`, {
+            method: 'POST'
+        });
+        showToast('Запрос на совместное редактирование отклонён');
+
+        editRecipesRequests = await apiFetch('/api/edit-recipes-requests/');
+        renderFriendRequests();
+    } catch (e) {
+        showError(e.message || 'Не удалось отклонить запрос');
+    } finally {
+        closeEditRecipesRequestModal();
+        currentEditRecipesRequestId = null;
     }
 }
 
@@ -328,7 +441,7 @@ function closeFriendModal() {
     currentFriendRequestName = '';
 }
 
-function openFriendActionsModal(friendDisplayName, canEditRecipes) {
+function openFriendActionsModal(friendDisplayName, editRecipesStatus) {
     const titleEl = document.getElementById('modalFriendActionsTitle');
     const modalEl = document.getElementById('friendActionsModal');
     const toggleBtn = document.getElementById('btnToggleEditRecipes');
@@ -336,16 +449,44 @@ function openFriendActionsModal(friendDisplayName, canEditRecipes) {
         titleEl.textContent = friendDisplayName || 'Друг';
     }
     if (toggleBtn) {
-        toggleBtn.textContent = canEditRecipes
-            ? 'Запретить редактирование рецептов'
-            : 'Разрешить редактирование рецептов';
-        toggleBtn.className = canEditRecipes
-            ? 'btn btn-secondary'
-            : 'btn btn-primary';
+        if (editRecipesStatus === 'accepted') {
+            toggleBtn.textContent = 'Отключить совместное редактирование';
+            toggleBtn.className = 'btn btn-secondary';
+            toggleBtn.onclick = handleRevokeEditRecipes;
+            toggleBtn.disabled = false;
+        } else if (editRecipesStatus === 'pending') {
+            toggleBtn.textContent = 'Запрос на редактирование отправлен';
+            toggleBtn.className = 'btn btn-secondary';
+            toggleBtn.onclick = handleRevokeEditRecipes;
+            toggleBtn.disabled = false;
+        } else {
+            toggleBtn.textContent = 'Запросить совместное редактирование';
+            toggleBtn.className = 'btn btn-primary';
+            toggleBtn.onclick = handleSendEditRecipesRequest;
+            toggleBtn.disabled = false;
+        }
         toggleBtn.style.width = '100%';
     }
     if (modalEl) {
         modalEl.classList.add('active');
+    }
+}
+
+function openEditRecipesRequestModal(userDisplayName) {
+    const titleEl = document.getElementById('modalEditRecipesTitle');
+    const modalEl = document.getElementById('editRecipesRequestModal');
+    if (titleEl) {
+        titleEl.textContent = userDisplayName || 'Запрос на совместное редактирование';
+    }
+    if (modalEl) {
+        modalEl.classList.add('active');
+    }
+}
+
+function closeEditRecipesRequestModal() {
+    const modalEl = document.getElementById('editRecipesRequestModal');
+    if (modalEl) {
+        modalEl.classList.remove('active');
     }
 }
 

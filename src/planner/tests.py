@@ -236,7 +236,7 @@ class RecipeApiTests(ApiTestBase):
 
 
 class RecipeFriendEditorTests(ApiTestBase):
-    """Verify that friend editors with can_edit_recipes=True can update/delete recipes."""
+    """Verify that mutual edit-recipes sharing works correctly."""
 
     def setUp(self):
         super().setUp()
@@ -258,7 +258,8 @@ class RecipeFriendEditorTests(ApiTestBase):
             from_user=self.user,
             to_user=self.owner,
             status=FriendRequest.STATUS_ACCEPTED,
-            can_edit_recipes=True,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
+            can_edit_recipes_requested_by=self.user,
         )
 
     def test_friend_editor_can_update_recipe(self):
@@ -307,7 +308,7 @@ class RecipeFriendEditorTests(ApiTestBase):
             from_user=self.user,
             to_user=self.owner,
             status=FriendRequest.STATUS_ACCEPTED,
-            can_edit_recipes=False,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_NONE,
         )
         body = {
             "name": "Hacked",
@@ -321,6 +322,54 @@ class RecipeFriendEditorTests(ApiTestBase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_pending_edit_recipes_does_not_grant_permission(self):
+        """A pending sharing request must NOT grant edit access."""
+        FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.owner,
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_PENDING,
+            can_edit_recipes_requested_by=self.user,
+        )
+        body = {
+            "name": "Hacked",
+            "description": "x",
+            "instructions": "x",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+        }
+        response = self.client.put(
+            f"/api/recipes/{self.recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_accepted_edit_recipes_is_bidirectional(self):
+        """Once accepted, both friends can edit each other's recipes."""
+        self._grant_friend_edit()
+        my_recipe = Recipe.objects.create(
+            user=self.user, name="My Soup", description="d", instructions="i"
+        )
+        RecipeIngredient.objects.create(
+            recipe=my_recipe, ingredient=self.ing, weight_grams=100
+        )
+
+        owner_client = Client()
+        owner_client.force_login(self.owner)
+        body = {
+            "name": "Updated My Soup",
+            "description": "new d",
+            "instructions": "new i",
+            "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 200}],
+        }
+        response = owner_client.put(
+            f"/api/recipes/{my_recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "Updated My Soup")
 
 
 class MenuApiTests(ApiTestBase):
@@ -668,3 +717,149 @@ class FriendsApiTests(ApiTestBase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
+
+
+class EditRecipesRequestFlowTests(ApiTestBase):
+    """Test the full send → accept/decline → revoke flow for edit-recipes requests."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = User.objects.create_user(
+            username="friend", password="pass", email="friend@example.com"
+        )
+        self.fr = FriendRequest.objects.create(
+            from_user=self.user,
+            to_user=self.other,
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        self.other_client = Client()
+        self.other_client.force_login(self.other)
+
+    def test_send_edit_recipes_request(self):
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/send-edit-recipes-request/"
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["can_edit_recipes_status"], "pending")
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_PENDING
+        )
+        self.assertEqual(self.fr.can_edit_recipes_requested_by_id, self.user.id)
+
+    def test_send_duplicate_request_400(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/send-edit-recipes-request/"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_incoming_edit_recipes_requests_list(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.get("/api/edit-recipes-requests/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["friend_request_id"], self.fr.id)
+        self.assertEqual(data[0]["requested_by_id"], self.user.id)
+
+    def test_sender_does_not_see_own_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.get("/api/edit-recipes-requests/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 0)
+
+    def test_accept_edit_recipes_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/accept/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_ACCEPTED
+        )
+
+    def test_decline_edit_recipes_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/decline/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+        self.assertIsNone(self.fr.can_edit_recipes_requested_by)
+
+    def test_sender_cannot_accept_own_request(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/edit-recipes-requests/{self.fr.id}/accept/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_revoke_edit_recipes(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.post(
+            f"/api/friends/{self.other.id}/revoke-edit-recipes/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+
+    def test_other_user_can_revoke_too(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.other_client.post(
+            f"/api/friends/{self.user.id}/revoke-edit-recipes/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.fr.refresh_from_db()
+        self.assertEqual(
+            self.fr.can_edit_recipes_status, FriendRequest.EDIT_RECIPES_NONE
+        )
+
+    def test_friends_list_shows_edit_recipes_status(self):
+        self.fr.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_ACCEPTED
+        self.fr.can_edit_recipes_requested_by = self.user
+        self.fr.save()
+
+        response = self.client.get("/api/friends/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertTrue(data[0]["can_edit_recipes"])
+        self.assertEqual(data[0]["can_edit_recipes_status"], "accepted")
