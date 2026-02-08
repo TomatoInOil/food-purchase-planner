@@ -411,14 +411,18 @@ def _replace_friend_menu_slots(menu, body):
 
 
 class FriendShoppingListView(APIView):
-    """Generate shopping list for a friend's first menu."""
+    """Generate shopping list for a friend's menu. Accepts optional menu_id."""
 
     def post(self, request, user_id):
         serializer = ShoppingListRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         friend_user = get_friend_user_or_404(request.user, user_id)
-        friend_menu = Menu.objects.filter(user=friend_user).first()
+        menu_id = request.data.get("menu_id")
+        if menu_id:
+            friend_menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
+        else:
+            friend_menu = Menu.objects.filter(user=friend_user).first()
         if not friend_menu:
             return Response([])
         result = calculate_shopping_list(

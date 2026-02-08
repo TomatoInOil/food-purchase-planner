@@ -1,42 +1,93 @@
 /**
  * Weekly menu planner: sidebar, multi-menu CRUD, generation, save, clear.
+ * Supports both own menus and friend menus (when collaborative editing is accepted).
  */
+
+// --- Helpers ---
+
+function isViewingFriendMenu() {
+    return currentMenuOwnerId !== null;
+}
+
+function canEditCurrentMenu() {
+    if (!isViewingFriendMenu()) return true;
+    return friendCanEditMenus;
+}
+
+function getActiveMenuList() {
+    return isViewingFriendMenu() ? friendMenus : menus;
+}
+
+function getActiveMenuId() {
+    return isViewingFriendMenu() ? activeFriendMenuId : activeMenuId;
+}
+
+function buildMenuApiUrl(menuId) {
+    if (isViewingFriendMenu()) {
+        return '/api/friends/' + currentMenuOwnerId + '/menus/' + menuId + '/';
+    }
+    return '/api/menus/' + menuId + '/';
+}
+
+function buildMenuListApiUrl() {
+    if (isViewingFriendMenu()) {
+        return '/api/friends/' + currentMenuOwnerId + '/menus/';
+    }
+    return '/api/menus/';
+}
+
+function _initEmptyWeekMenu() {
+    weekMenu = {};
+    for (var d = 0; d < 7; d++) {
+        for (var m = 0; m < 4; m++) {
+            weekMenu[d + '-' + m] = null;
+        }
+    }
+}
 
 // --- Sidebar rendering and interactions ---
 
 function renderMenuSidebar() {
-    const list = document.getElementById('menuSidebarList');
+    var list = document.getElementById('menuSidebarList');
     if (!list) return;
     list.innerHTML = '';
-    menus.forEach(function (m) {
-        const item = document.createElement('div');
-        item.className = 'menu-sidebar-item' + (m.id === activeMenuId ? ' active' : '');
+    var menuList = getActiveMenuList();
+    var currentId = getActiveMenuId();
+    var editable = canEditCurrentMenu();
+
+    menuList.forEach(function (m) {
+        var item = document.createElement('div');
+        item.className = 'menu-sidebar-item' + (m.id === currentId ? ' active' : '');
         item.dataset.menuId = m.id;
 
-        const nameSpan = document.createElement('span');
+        var nameSpan = document.createElement('span');
         nameSpan.className = 'menu-sidebar-item-name';
         nameSpan.textContent = m.name;
         nameSpan.onclick = function () { selectMenu(m.id); };
 
-        const actions = document.createElement('span');
-        actions.className = 'menu-sidebar-item-actions';
-
-        const renameBtn = document.createElement('button');
-        renameBtn.className = 'btn-icon';
-        renameBtn.title = 'Переименовать';
-        renameBtn.textContent = '✏️';
-        renameBtn.onclick = function (e) { e.stopPropagation(); renameMenu(m.id, m.name); };
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-icon';
-        deleteBtn.title = 'Удалить';
-        deleteBtn.textContent = '🗑️';
-        deleteBtn.onclick = function (e) { e.stopPropagation(); deleteMenu(m.id); };
-
-        actions.appendChild(renameBtn);
-        actions.appendChild(deleteBtn);
         item.appendChild(nameSpan);
-        item.appendChild(actions);
+
+        if (editable) {
+            var actions = document.createElement('span');
+            actions.className = 'menu-sidebar-item-actions';
+
+            var renameBtn = document.createElement('button');
+            renameBtn.className = 'btn-icon';
+            renameBtn.title = 'Переименовать';
+            renameBtn.textContent = '✏️';
+            renameBtn.onclick = function (e) { e.stopPropagation(); renameMenu(m.id, m.name); };
+
+            var deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-icon';
+            deleteBtn.title = 'Удалить';
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.onclick = function (e) { e.stopPropagation(); deleteMenu(m.id); };
+
+            actions.appendChild(renameBtn);
+            actions.appendChild(deleteBtn);
+            item.appendChild(actions);
+        }
+
         list.appendChild(item);
     });
     updateActiveMenuTitle();
@@ -46,9 +97,15 @@ function renderMenuSidebar() {
 function updateActiveMenuTitle() {
     var titleEl = document.getElementById('activeMenuTitle');
     if (!titleEl) return;
-    if (currentMenuOwnerId !== null) {
+    if (isViewingFriendMenu()) {
         var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
-        titleEl.textContent = friend ? 'Меню ' + friend.username : 'Меню друга';
+        var friendName = friend ? friend.username : 'друга';
+        var activeMenu = friendMenus.find(function (m) { return m.id === activeFriendMenuId; });
+        if (activeMenu) {
+            titleEl.textContent = activeMenu.name + ' (' + friendName + ')';
+        } else {
+            titleEl.textContent = 'Меню ' + friendName;
+        }
         return;
     }
     var activeMenu = menus.find(function (m) { return m.id === activeMenuId; });
@@ -58,10 +115,26 @@ function updateActiveMenuTitle() {
 function updateMenuSidebarVisibility() {
     var sidebar = document.getElementById('menuSidebar');
     var toggle = document.getElementById('menuSidebarToggle');
+    var titleEl = document.getElementById('menuSidebarTitle');
+    var createBtn = document.getElementById('menuSidebarCreateBtn');
     if (!sidebar) return;
-    var isReadOnly = currentMenuOwnerId !== null;
-    sidebar.classList.toggle('hidden', isReadOnly);
-    if (toggle) toggle.classList.toggle('hidden', isReadOnly);
+
+    var hasFriendMenus = isViewingFriendMenu() && friendMenus.length > 0;
+    var showSidebar = !isViewingFriendMenu() || hasFriendMenus;
+    sidebar.classList.toggle('hidden', !showSidebar);
+    if (toggle) toggle.classList.toggle('hidden', !showSidebar);
+
+    if (titleEl) {
+        if (isViewingFriendMenu()) {
+            var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
+            titleEl.textContent = friend ? 'Меню ' + friend.username : 'Меню друга';
+        } else {
+            titleEl.textContent = 'Мои меню';
+        }
+    }
+    if (createBtn) {
+        createBtn.style.display = canEditCurrentMenu() ? '' : 'none';
+    }
 }
 
 function toggleMenuSidebar() {
@@ -71,25 +144,38 @@ function toggleMenuSidebar() {
 }
 
 async function selectMenu(menuId) {
-    if (currentMenuOwnerId !== null) {
-        currentMenuOwnerId = null;
-        var ownerSelect = document.getElementById('menuOwnerSelect');
-        if (ownerSelect) ownerSelect.value = '';
+    if (!isViewingFriendMenu()) {
+        try {
+            var menuData = await apiFetch('/api/menus/' + menuId + '/');
+            activeMenuId = menuId;
+            weekMenu = menuData;
+            renderMenuSidebar();
+            generateWeekPlanner();
+            updateShoppingOwnerLabel();
+            _closeSidebarIfOpen();
+        } catch (e) {
+            showError(e.message || 'Ошибка загрузки меню');
+        }
+        return;
     }
+
     try {
-        var menuData = await apiFetch('/api/menus/' + menuId + '/');
-        activeMenuId = menuId;
+        var menuData = await apiFetch('/api/friends/' + currentMenuOwnerId + '/menus/' + menuId + '/');
+        activeFriendMenuId = menuId;
         weekMenu = menuData;
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
-
-        var sidebar = document.getElementById('menuSidebar');
-        if (sidebar && sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
-        }
+        _closeSidebarIfOpen();
     } catch (e) {
         showError(e.message || 'Ошибка загрузки меню');
+    }
+}
+
+function _closeSidebarIfOpen() {
+    var sidebar = document.getElementById('menuSidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
     }
 }
 
@@ -98,27 +184,25 @@ async function createNewMenu() {
     if (name === null) return;
     name = name.trim() || 'Меню на неделю';
     try {
-        var newMenu = await apiFetch('/api/menus/', {
+        var newMenu = await apiFetch(buildMenuListApiUrl(), {
             method: 'POST',
             body: { name: name }
         });
-        menus.push(newMenu);
-        activeMenuId = newMenu.id;
-        weekMenu = {};
-        for (var d = 0; d < 7; d++) {
-            for (var m = 0; m < 4; m++) {
-                weekMenu[d + '-' + m] = null;
-            }
+        var menuList = getActiveMenuList();
+        menuList.push(newMenu);
+
+        if (isViewingFriendMenu()) {
+            activeFriendMenuId = newMenu.id;
+        } else {
+            activeMenuId = newMenu.id;
         }
+
+        _initEmptyWeekMenu();
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
         showToast('Меню «' + name + '» создано');
-
-        var sidebar = document.getElementById('menuSidebar');
-        if (sidebar && sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
-        }
+        _closeSidebarIfOpen();
     } catch (e) {
         showError(e.message || 'Ошибка создания меню');
     }
@@ -129,12 +213,13 @@ async function renameMenu(menuId, currentName) {
     if (newName === null || newName.trim() === '' || newName.trim() === currentName) return;
     newName = newName.trim();
     try {
-        var updated = await apiFetch('/api/menus/' + menuId + '/', {
+        var updated = await apiFetch(buildMenuApiUrl(menuId), {
             method: 'PATCH',
             body: { name: newName }
         });
-        var idx = menus.findIndex(function (m) { return m.id === menuId; });
-        if (idx !== -1) menus[idx].name = updated.name;
+        var menuList = getActiveMenuList();
+        var idx = menuList.findIndex(function (m) { return m.id === menuId; });
+        if (idx !== -1) menuList[idx].name = updated.name;
         renderMenuSidebar();
         updateShoppingOwnerLabel();
         showToast('Меню переименовано');
@@ -144,19 +229,31 @@ async function renameMenu(menuId, currentName) {
 }
 
 async function deleteMenu(menuId) {
-    if (menus.length <= 1) {
+    var menuList = getActiveMenuList();
+    if (menuList.length <= 1) {
         showError('Нельзя удалить единственное меню');
         return;
     }
     if (!confirm('Удалить это меню? Все блюда в нём будут потеряны.')) return;
     try {
-        await apiFetch('/api/menus/' + menuId + '/', { method: 'DELETE' });
-        menus = menus.filter(function (m) { return m.id !== menuId; });
-        if (activeMenuId === menuId) {
-            activeMenuId = menus[0].id;
-            var menuData = await apiFetch('/api/menus/' + activeMenuId + '/');
-            weekMenu = menuData;
+        await apiFetch(buildMenuApiUrl(menuId), { method: 'DELETE' });
+
+        if (isViewingFriendMenu()) {
+            friendMenus = friendMenus.filter(function (m) { return m.id !== menuId; });
+            if (activeFriendMenuId === menuId) {
+                activeFriendMenuId = friendMenus[0].id;
+                var menuData = await apiFetch(buildMenuApiUrl(activeFriendMenuId));
+                weekMenu = menuData;
+            }
+        } else {
+            menus = menus.filter(function (m) { return m.id !== menuId; });
+            if (activeMenuId === menuId) {
+                activeMenuId = menus[0].id;
+                var menuData = await apiFetch(buildMenuApiUrl(activeMenuId));
+                weekMenu = menuData;
+            }
         }
+
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
@@ -193,7 +290,7 @@ function populateMenuOwnerSelect() {
 function updateShoppingOwnerLabel() {
     var label = document.getElementById('shoppingOwnerLabel');
     if (!label) return;
-    if (currentMenuOwnerId !== null) {
+    if (isViewingFriendMenu()) {
         var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
         label.textContent = friend ? '(меню ' + friend.username + ')' : '(меню друга)';
     } else {
@@ -207,33 +304,55 @@ function handleMenuOwnerChange() {
     if (!select) return;
     var value = select.value;
     if (!value) {
-        currentMenuOwnerId = null;
-        friendMenuRecipes = [];
-        selectMenu(activeMenuId);
+        _resetToOwnMenu();
         return;
     }
     var friendId = parseInt(value, 10);
     currentMenuOwnerId = friendId;
-    apiFetch('/api/friends/' + friendId + '/menu/').then(function (response) {
-        weekMenu = response.menu || {};
-        friendMenuRecipes = response.recipes || [];
+    _loadFriendMenus(friendId);
+}
+
+function _resetToOwnMenu() {
+    currentMenuOwnerId = null;
+    friendMenus = [];
+    activeFriendMenuId = null;
+    friendCanEditMenus = false;
+    selectMenu(activeMenuId);
+}
+
+async function _loadFriendMenus(friendId) {
+    try {
+        var response = await apiFetch('/api/friends/' + friendId + '/menus/');
+        friendMenus = response.menus || [];
+        friendCanEditMenus = response.can_edit || false;
+
+        if (friendMenus.length > 0) {
+            activeFriendMenuId = friendMenus[0].id;
+            var menuData = await apiFetch('/api/friends/' + friendId + '/menus/' + activeFriendMenuId + '/');
+            weekMenu = menuData;
+        } else {
+            activeFriendMenuId = null;
+            _initEmptyWeekMenu();
+        }
+
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
         updateSaveClearButtonsState();
-    }).catch(function (e) {
+    } catch (e) {
         showError(e.message || 'Ошибка загрузки меню друга');
         currentMenuOwnerId = null;
-        friendMenuRecipes = [];
-    });
+        friendMenus = [];
+        friendCanEditMenus = false;
+    }
 }
 
 function updateSaveClearButtonsState() {
     var saveBtn = document.querySelector('.menu-main .card-actions .btn-primary');
     var clearBtn = document.getElementById('clear-menu-btn');
-    var isReadOnly = currentMenuOwnerId !== null;
-    if (saveBtn) saveBtn.style.display = isReadOnly ? 'none' : '';
-    if (clearBtn) clearBtn.style.display = isReadOnly ? 'none' : '';
+    var canEdit = canEditCurrentMenu();
+    if (saveBtn) saveBtn.style.display = canEdit ? '' : 'none';
+    if (clearBtn) clearBtn.style.display = canEdit ? '' : 'none';
 }
 
 // --- Week planner rendering ---
@@ -253,7 +372,7 @@ function setDefaultShoppingDates() {
 }
 
 function getRecipeSource() {
-    return currentMenuOwnerId !== null ? friendMenuRecipes : recipes;
+    return recipes;
 }
 
 function getDayNutritionTotals(dayIndex) {
@@ -284,7 +403,7 @@ function generateWeekPlanner() {
     var days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
     var meals = ['Завтрак', 'Обед', 'Перекус', 'Ужин'];
     var container = document.getElementById('weekPlanner');
-    var isReadOnly = currentMenuOwnerId !== null;
+    var isReadOnly = !canEditCurrentMenu();
     var recipeSource = getRecipeSource();
 
     container.innerHTML = days.map(function (day, dayIndex) {
@@ -322,17 +441,18 @@ function updateWeekMenu() {
 // --- Save and clear ---
 
 async function saveWeekMenu() {
-    if (currentMenuOwnerId !== null) {
-        showError('Нельзя изменять меню друга');
+    if (!canEditCurrentMenu()) {
+        showError('Нет прав на редактирование этого меню');
         return;
     }
-    if (!activeMenuId) {
+    var menuId = getActiveMenuId();
+    if (!menuId) {
         showError('Не выбрано меню');
         return;
     }
     updateWeekMenu();
     try {
-        await apiFetch('/api/menus/' + activeMenuId + '/', { method: 'PUT', body: weekMenu });
+        await apiFetch(buildMenuApiUrl(menuId), { method: 'PUT', body: weekMenu });
         showToast('Меню сохранено');
     } catch (e) {
         showError(e.message || 'Ошибка сохранения меню');
@@ -340,20 +460,16 @@ async function saveWeekMenu() {
 }
 
 async function clearWeekMenu() {
-    if (currentMenuOwnerId !== null) {
-        showError('Нельзя изменять меню друга');
+    if (!canEditCurrentMenu()) {
+        showError('Нет прав на редактирование этого меню');
         return;
     }
-    if (!activeMenuId) return;
+    var menuId = getActiveMenuId();
+    if (!menuId) return;
     if (!confirm('Очистить все слоты этого меню?')) return;
-    weekMenu = {};
-    for (var d = 0; d < 7; d++) {
-        for (var m = 0; m < 4; m++) {
-            weekMenu[d + '-' + m] = null;
-        }
-    }
+    _initEmptyWeekMenu();
     try {
-        await apiFetch('/api/menus/' + activeMenuId + '/', { method: 'PUT', body: weekMenu });
+        await apiFetch(buildMenuApiUrl(menuId), { method: 'PUT', body: weekMenu });
         generateWeekPlanner();
     } catch (e) {
         showError(e.message || 'Ошибка очистки меню');
