@@ -1,3 +1,22 @@
+<div id="friendActionsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalFriendActionsTitle">Друг</h2>
+            <button class="close-modal" onclick="closeFriendActionsModal()">&times;</button>
+        </div>
+        <div id="modalFriendActionsContent">
+            <div class="modal-actions" style="flex-direction: column; gap: 12px;">
+                <button id="btnToggleEditRecipes" class="btn btn-secondary" style="width: 100%;">
+                    Запросить совместное редактирование
+                </button>
+                <button class="btn btn-danger" style="width: 100%;" onclick="openFriendRemoveConfirm()">
+                    Удалить из друзей
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="friendRemoveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -8,6 +27,22 @@
             <p class="form-help modal-help">Пользователь будет удалён из списка друзей. Вы сможете добавить его снова по коду.</p>
             <div class="modal-actions modal-actions--end">
                 <button class="btn btn-danger" onclick="handleFriendRemove()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="editRecipesRequestModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalEditRecipesTitle">Запрос на совместное редактирование</h2>
+            <button class="close-modal" onclick="closeEditRecipesRequestModal()">&times;</button>
+        </div>
+        <div id="modalEditRecipesContent">
+            <p class="form-help modal-help">Пользователь хочет включить совместное редактирование рецептов. После принятия вы оба сможете редактировать рецепты друг друга.</p>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="handleEditRecipesRequestAccept()">Принять</button>
+                <button class="btn btn-danger" onclick="handleEditRecipesRequestDecline()">Отклонить</button>
             </div>
         </div>
     </div>

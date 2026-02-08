@@ -82,6 +82,7 @@ class RecipeIngredientWriteSerializer(serializers.Serializer):
 
 class RecipeSerializer(serializers.ModelSerializer):
     is_owner = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
     author_username = serializers.SerializerMethodField()
     ingredients = RecipeIngredientReadSerializer(many=True, read_only=True)
     total_calories = serializers.FloatField(read_only=True, default=0)
@@ -101,6 +102,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             "total_fat",
             "total_carbs",
             "is_owner",
+            "can_edit",
             "ingredients",
             "author_username",
         ]
@@ -108,6 +110,24 @@ class RecipeSerializer(serializers.ModelSerializer):
     def get_is_owner(self, obj):
         request = self.context.get("request")
         return request and request.user.id == obj.user_id
+
+    def get_can_edit(self, obj):
+        """Return True if the current user is the owner or a friend with edit permission.
+
+        Uses a pre-computed set of owner IDs from the serializer context to
+        avoid an extra DB query per recipe (N+1 prevention).
+        """
+        request = self.context.get("request")
+        if not request:
+            return False
+        if request.user.id == obj.user_id:
+            return True
+        editable_owner_ids = self.context.get("editable_owner_ids")
+        if editable_owner_ids is not None:
+            return obj.user_id in editable_owner_ids
+        from planner.services_friends import can_friend_edit_recipes
+
+        return can_friend_edit_recipes(request.user, obj.user)
 
     def get_author_username(self, obj):
         return obj.user.username if obj.user_id else ""
@@ -119,7 +139,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                 "ingredient_name": ri.ingredient.name,
                 "weight_grams": ri.weight_grams,
             }
-            for ri in recipe.recipe_ingredients.select_related("ingredient")
+            for ri in recipe.recipe_ingredients.all()
         ]
 
     def to_representation(self, instance):
@@ -299,3 +319,17 @@ class FriendSerializer(serializers.Serializer):
     username = serializers.CharField()
     friend_request_id = serializers.IntegerField()
     since = serializers.DateTimeField()
+    can_edit_recipes = serializers.BooleanField()
+    can_edit_recipes_status = serializers.CharField()
+
+
+class EditRecipesRequestSerializer(serializers.Serializer):
+    """Serializer for pending edit-recipes sharing requests."""
+
+    friend_request_id = serializers.IntegerField()
+    from_user_id = serializers.IntegerField()
+    from_username = serializers.CharField()
+    to_user_id = serializers.IntegerField()
+    to_username = serializers.CharField()
+    requested_by_id = serializers.IntegerField()
+    requested_by_username = serializers.CharField()
