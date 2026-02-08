@@ -316,12 +316,13 @@ async function handleRevokeEditRecipes() {
         await apiFetch(`/api/friends/${userId}/revoke-edit-recipes/`, {
             method: 'POST'
         });
-        showToast('Совместное редактирование рецептов отключено');
+        showToast('Совместное редактирование отключено');
 
         friends = await apiFetch('/api/friends/');
         renderFriends();
         recipes = await apiFetch('/api/recipes/');
         renderRecipes();
+        _refreshMenuIfViewingFriend(userId);
     } catch (e) {
         showError(e.message || 'Не удалось отключить совместное редактирование');
     } finally {
@@ -342,7 +343,7 @@ async function handleEditRecipesRequestAccept() {
         await apiFetch(`/api/edit-recipes-requests/${requestId}/accept/`, {
             method: 'POST'
         });
-        showToast('Совместное редактирование рецептов включено');
+        showToast('Совместное редактирование включено');
 
         friends = await apiFetch('/api/friends/');
         editRecipesRequests = await apiFetch('/api/edit-recipes-requests/');
@@ -520,4 +521,10 @@ function closeFriendRemoveModal() {
         modalEl.classList.remove('active');
     }
     currentFriendRemoveName = '';
+}
+
+function _refreshMenuIfViewingFriend(friendUserId) {
+    if (currentMenuOwnerId === friendUserId && typeof _loadFriendMenus === 'function') {
+        _loadFriendMenus(friendUserId);
+    }
 }
