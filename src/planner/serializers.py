@@ -138,7 +138,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                 "ingredient_name": ri.ingredient.name,
                 "weight_grams": ri.weight_grams,
             }
-            for ri in recipe.recipe_ingredients.select_related("ingredient")
+            for ri in recipe.recipe_ingredients.all()
         ]
 
     def to_representation(self, instance):
