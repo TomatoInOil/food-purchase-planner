@@ -22,7 +22,7 @@ def create_menus_for_existing_users(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("planner", "0002_friendrequest_userfriendcode"),
+        ("planner", "0003_add_can_edit_recipes_to_friendrequest"),
     ]
 
     operations = [
