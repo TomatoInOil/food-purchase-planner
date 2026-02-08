@@ -1,20 +1,12 @@
-"""Replace MenuSlot.user FK with non-nullable MenuSlot.menu FK.
-
-Non-atomic: PostgreSQL raises 'pending trigger events' when AlterField
-(nullable→non-null FK) drops and recreates the FK constraint within one
-transaction.  With atomic=False each DDL statement auto-commits, so
-deferred CREATE INDEX never sees pending events.
-"""
+"""Replace MenuSlot.user FK with non-nullable MenuSlot.menu FK."""
 
 import django.db.models.deletion
 from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-    atomic = False
-
     dependencies = [
-        ("planner", "0004_add_menu_model"),
+        ("planner", "0005_populate_menus_for_existing_users"),
     ]
 
     operations = [
