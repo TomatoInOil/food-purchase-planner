@@ -1096,8 +1096,8 @@ class FriendMenuEditTests(ApiTestBase):
     def test_edit_is_bidirectional(self):
         """Both friends can edit each other's menus when edit is accepted."""
         self._make_friends_with_edit()
-        my_menu = Menu.objects.create(user=self.user, name="My Menu")
-        friend_menu = Menu.objects.create(user=self.friend, name="Friend Menu")
+        Menu.objects.create(user=self.user, name="My Menu")
+        Menu.objects.create(user=self.friend, name="Friend Menu")
 
         response1 = self.client.post(
             f"/api/friends/{self.friend.id}/menus/",
@@ -1116,10 +1116,10 @@ class FriendMenuEditTests(ApiTestBase):
     def test_friend_menu_detail_404_for_wrong_menu(self):
         """Accessing a menu that doesn't belong to the friend returns 404."""
         self._make_friends_with_edit()
-        my_menu = Menu.objects.create(user=self.user, name="My Menu")
+        own_menu = Menu.objects.create(user=self.user, name="My Menu")
 
         response = self.client.get(
-            f"/api/friends/{self.friend.id}/menus/{my_menu.id}/"
+            f"/api/friends/{self.friend.id}/menus/{own_menu.id}/"
         )
         self.assertEqual(response.status_code, 404)
 
