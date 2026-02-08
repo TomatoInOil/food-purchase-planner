@@ -76,9 +76,9 @@ async function selectMenu(menuId) {
         var ownerSelect = document.getElementById('menuOwnerSelect');
         if (ownerSelect) ownerSelect.value = '';
     }
-    activeMenuId = menuId;
     try {
         var menuData = await apiFetch('/api/menus/' + menuId + '/');
+        activeMenuId = menuId;
         weekMenu = menuData;
         renderMenuSidebar();
         generateWeekPlanner();
