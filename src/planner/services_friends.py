@@ -64,6 +64,21 @@ def can_friend_edit_recipes(editor_user, recipe_owner):
     ).exists()
 
 
+def can_friend_edit_menus(editor_user, menu_owner):
+    """Check if editor_user has permission to edit menu_owner's menus.
+
+    Menus share the same collaborative editing flag as recipes:
+    returns True when can_edit_recipes_status is 'accepted'.
+    """
+    return FriendRequest.objects.filter(
+        status=FriendRequest.STATUS_ACCEPTED,
+        can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
+    ).filter(
+        models.Q(from_user=editor_user, to_user=menu_owner)
+        | models.Q(from_user=menu_owner, to_user=editor_user)
+    ).exists()
+
+
 def get_friend_request_between(user_a, user_b):
     """
     Return the accepted FriendRequest between two users, or None.

@@ -13,6 +13,8 @@ from planner.views_api import (
 )
 from planner.views_friends import (
     EditRecipesRequestViewSet,
+    FriendMenuDetailView,
+    FriendMenuListCreateView,
     FriendMenuView,
     FriendRemoveView,
     FriendRequestViewSet,
@@ -65,6 +67,16 @@ urlpatterns = [
         "friends/<int:user_id>/menu/",
         FriendMenuView.as_view(),
         name="friend-menu",
+    ),
+    path(
+        "friends/<int:user_id>/menus/",
+        FriendMenuListCreateView.as_view(),
+        name="friend-menu-list-create",
+    ),
+    path(
+        "friends/<int:user_id>/menus/<int:menu_id>/",
+        FriendMenuDetailView.as_view(),
+        name="friend-menu-detail",
     ),
     path(
         "friends/<int:user_id>/shopping-list/",
