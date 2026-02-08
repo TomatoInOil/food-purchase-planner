@@ -112,6 +112,7 @@ async function createNewMenu() {
         }
         renderMenuSidebar();
         generateWeekPlanner();
+        updateShoppingOwnerLabel();
         showToast('Меню «' + name + '» создано');
 
         var sidebar = document.getElementById('menuSidebar');
@@ -135,6 +136,7 @@ async function renameMenu(menuId, currentName) {
         var idx = menus.findIndex(function (m) { return m.id === menuId; });
         if (idx !== -1) menus[idx].name = updated.name;
         renderMenuSidebar();
+        updateShoppingOwnerLabel();
         showToast('Меню переименовано');
     } catch (e) {
         showError(e.message || 'Ошибка переименования');
@@ -157,6 +159,7 @@ async function deleteMenu(menuId) {
         }
         renderMenuSidebar();
         generateWeekPlanner();
+        updateShoppingOwnerLabel();
         showToast('Меню удалено');
     } catch (e) {
         showError(e.message || 'Ошибка удаления меню');
