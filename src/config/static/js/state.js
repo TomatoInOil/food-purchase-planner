@@ -8,3 +8,5 @@ let weekMenu = {};
 let editingRecipeId = null;
 let currentMenuOwnerId = null;
 let friendMenuRecipes = [];
+let menus = [];
+let activeMenuId = null;

@@ -4,16 +4,30 @@
 
 async function init() {
     try {
-        const [recipesData, ingredientsData, menuData] = await Promise.all([
+        const [recipesData, ingredientsData, menusData] = await Promise.all([
             apiFetch('/api/recipes/'),
             apiFetch('/api/ingredients/'),
-            apiFetch('/api/menu/')
+            apiFetch('/api/menus/')
         ]);
         recipes = recipesData;
         ingredients = ingredientsData;
+        menus = menusData;
+
+        if (menus.length === 0) {
+            const newMenu = await apiFetch('/api/menus/', {
+                method: 'POST',
+                body: { name: 'Меню на неделю' }
+            });
+            menus = [newMenu];
+        }
+        activeMenuId = menus[0].id;
+
+        const menuData = await apiFetch(`/api/menus/${activeMenuId}/`);
         weekMenu = menuData;
+
         renderRecipes();
         renderIngredients();
+        renderMenuSidebar();
         generateWeekPlanner();
         addIngredientRow();
         setDefaultShoppingDates();

@@ -111,8 +111,26 @@ class RecipeIngredient(models.Model):
         return f"{self.recipe.name} — {self.ingredient.name} ({self.weight_grams}g)"
 
 
+class Menu(models.Model):
+    """A named weekly menu plan. Each user can have multiple menus."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="menus",
+    )
+    name = models.CharField(max_length=200, default="Меню на неделю")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.user_id} — {self.name}"
+
+
 class MenuSlot(models.Model):
-    """One meal slot in the weekly menu. Only owner can view and edit."""
+    """One meal slot in a weekly menu plan."""
 
     DAY_CHOICES = [
         (0, "Monday"),
@@ -130,10 +148,10 @@ class MenuSlot(models.Model):
         (3, "dinner"),
     ]
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+    menu = models.ForeignKey(
+        Menu,
         on_delete=models.CASCADE,
-        related_name="menu_slots",
+        related_name="slots",
     )
     day_of_week = models.IntegerField(choices=DAY_CHOICES)
     meal_type = models.IntegerField(choices=MEAL_CHOICES)
@@ -146,11 +164,11 @@ class MenuSlot(models.Model):
     )
 
     class Meta:
-        ordering = ["user", "day_of_week", "meal_type"]
+        ordering = ["menu", "day_of_week", "meal_type"]
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "day_of_week", "meal_type"],
-                name="unique_user_day_meal",
+                fields=["menu", "day_of_week", "meal_type"],
+                name="unique_menu_day_meal",
             )
         ]
 

@@ -5,6 +5,8 @@ from rest_framework.routers import DefaultRouter
 
 from planner.views_api import (
     IngredientViewSet,
+    MenuDetailView,
+    MenuListCreateView,
     MenuView,
     RecipeViewSet,
     ShoppingListView,
@@ -33,8 +35,10 @@ router.register(
 )
 
 urlpatterns = [
-    path("menu/", MenuView.as_view()),
-    path("shopping-list/", ShoppingListView.as_view()),
+    path("menus/", MenuListCreateView.as_view(), name="menu-list-create"),
+    path("menus/<int:menu_id>/", MenuDetailView.as_view(), name="menu-detail"),
+    path("menu/", MenuView.as_view(), name="menu-legacy"),
+    path("shopping-list/", ShoppingListView.as_view(), name="shopping-list"),
     path("friends/my-code/", MyFriendCodeView.as_view(), name="friends-my-code"),
     path(
         "friends/send-request/",

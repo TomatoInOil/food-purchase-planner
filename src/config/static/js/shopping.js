@@ -3,10 +3,10 @@
  */
 
 async function generateShoppingList() {
-    const startDate = document.getElementById('shoppingStartDate').value;
-    const endDate = document.getElementById('shoppingEndDate').value;
-    const peopleInput = document.getElementById('shoppingPeopleCount');
-    let peopleCount = parseInt(peopleInput.value, 10);
+    var startDate = document.getElementById('shoppingStartDate').value;
+    var endDate = document.getElementById('shoppingEndDate').value;
+    var peopleInput = document.getElementById('shoppingPeopleCount');
+    var peopleCount = parseInt(peopleInput.value, 10);
     if (isNaN(peopleCount) || peopleCount < 1 || peopleCount > 20) {
         peopleCount = 2;
     }
@@ -16,30 +16,33 @@ async function generateShoppingList() {
         return;
     }
 
-    const url = currentMenuOwnerId === null
-        ? '/api/shopping-list/'
-        : `/api/friends/${currentMenuOwnerId}/shopping-list/`;
+    var url;
+    var body = { start_date: startDate, end_date: endDate, people_count: peopleCount };
+
+    if (currentMenuOwnerId !== null) {
+        url = '/api/friends/' + currentMenuOwnerId + '/shopping-list/';
+    } else {
+        url = '/api/shopping-list/';
+        if (activeMenuId) {
+            body.menu_id = activeMenuId;
+        }
+    }
 
     try {
-        const items = await apiFetch(url, {
-            method: 'POST',
-            body: { start_date: startDate, end_date: endDate, people_count: peopleCount }
-        });
+        var items = await apiFetch(url, { method: 'POST', body: body });
 
-        const container = document.getElementById('shoppingList');
+        var container = document.getElementById('shoppingList');
         if (items.length === 0) {
             container.innerHTML = '<div class="empty-state"><p>Нет ингредиентов для выбранного периода</p></div>';
             return;
         }
 
-        container.innerHTML = items.map((item, index) => `
-            <div class="shopping-item">
-                <input type="checkbox" id="shop-${index}" onchange="toggleShoppingItem(this)">
-                <label for="shop-${index}">
-                    <strong>${item.name}</strong> - ${item.weight_grams}г
-                </label>
-            </div>
-        `).join('');
+        container.innerHTML = items.map(function (item, index) {
+            return '<div class="shopping-item">' +
+                '<input type="checkbox" id="shop-' + index + '" onchange="toggleShoppingItem(this)">' +
+                '<label for="shop-' + index + '"><strong>' + item.name + '</strong> - ' + item.weight_grams + 'г</label>' +
+                '</div>';
+        }).join('');
     } catch (e) {
         showError(e.message || 'Ошибка формирования списка покупок');
     }

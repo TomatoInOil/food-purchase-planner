@@ -2,12 +2,18 @@
 
 from django.contrib import admin
 
-from planner.models import Ingredient, MenuSlot, Recipe, RecipeIngredient
+from planner.models import Ingredient, Menu, MenuSlot, Recipe, RecipeIngredient
 
 
 class RecipeIngredientInline(admin.TabularInline):
     model = RecipeIngredient
     fields = ("ingredient", "weight_grams")
+    extra = 0
+
+
+class MenuSlotInline(admin.TabularInline):
+    model = MenuSlot
+    fields = ("day_of_week", "meal_type", "recipe")
     extra = 0
 
 
@@ -39,7 +45,15 @@ class RecipeIngredientAdmin(admin.ModelAdmin):
     list_filter = ("recipe__user",)
 
 
+@admin.register(Menu)
+class MenuAdmin(admin.ModelAdmin):
+    list_display = ("name", "user", "created_at")
+    list_filter = ("user",)
+    search_fields = ("name",)
+    inlines = [MenuSlotInline]
+
+
 @admin.register(MenuSlot)
 class MenuSlotAdmin(admin.ModelAdmin):
-    list_display = ("user", "day_of_week", "meal_type", "recipe")
-    list_filter = ("user", "day_of_week", "meal_type")
+    list_display = ("menu", "day_of_week", "meal_type", "recipe")
+    list_filter = ("menu__user", "day_of_week", "meal_type")

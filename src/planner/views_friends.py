@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.models import FriendRequest, Recipe, UserFriendCode
+from planner.models import FriendRequest, Menu, Recipe, UserFriendCode
 from planner.serializers import (
     EditRecipesRequestSerializer,
     FriendRequestSerializer,
@@ -15,7 +15,7 @@ from planner.serializers import (
     ShoppingListRequestSerializer,
     UserFriendCodeSerializer,
 )
-from planner.services import calculate_shopping_list_for_user, get_menu_for_user
+from planner.services import calculate_shopping_list, get_menu_slots
 from planner.services_friends import get_friend_request_between, get_friend_user_or_404
 
 
@@ -285,30 +285,36 @@ class EditRecipesRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
 
 class FriendMenuView(APIView):
-    """Read-only view of a friend's weekly menu."""
+    """Read-only view of a friend's first (oldest) weekly menu."""
 
     def get(self, request, user_id):
         friend_user = get_friend_user_or_404(request.user, user_id)
-        menu = get_menu_for_user(friend_user)
-        recipe_ids = {v for v in menu.values() if v is not None}
+        friend_menu = Menu.objects.filter(user=friend_user).first()
+        if not friend_menu:
+            return Response({"menu": {}, "recipes": []})
+        menu_data = get_menu_slots(friend_menu)
+        recipe_ids = {v for v in menu_data.values() if v is not None}
         recipes_qs = Recipe.objects.filter(pk__in=recipe_ids)
-        recipes = [
+        recipes_list = [
             {"id": r.id, "name": r.name, "total_calories": r.total_calories or 0}
             for r in recipes_qs
         ]
-        return Response({"menu": menu, "recipes": recipes})
+        return Response({"menu": menu_data, "recipes": recipes_list})
 
 
 class FriendShoppingListView(APIView):
-    """Generate shopping list for a friend's menu."""
+    """Generate shopping list for a friend's first menu."""
 
     def post(self, request, user_id):
         serializer = ShoppingListRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         friend_user = get_friend_user_or_404(request.user, user_id)
-        result = calculate_shopping_list_for_user(
-            friend_user,
+        friend_menu = Menu.objects.filter(user=friend_user).first()
+        if not friend_menu:
+            return Response([])
+        result = calculate_shopping_list(
+            friend_menu,
             data["start_date"],
             data["end_date"],
             data.get("people_count", 2),
