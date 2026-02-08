@@ -1,22 +1,8 @@
-"""Add Menu model, nullable FK on MenuSlot, and migrate existing data."""
+"""Add Menu model and nullable FK on MenuSlot."""
 
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
-
-
-def create_menus_for_existing_users(apps, schema_editor):
-    """Create a default Menu for every user that has at least one MenuSlot."""
-    Menu = apps.get_model("planner", "Menu")
-    MenuSlot = apps.get_model("planner", "MenuSlot")
-
-    user_ids = MenuSlot.objects.values_list("user", flat=True).distinct()
-    for user_id in user_ids:
-        menu = Menu.objects.create(
-            user_id=user_id,
-            name="Меню на неделю",
-        )
-        MenuSlot.objects.filter(user_id=user_id).update(menu=menu)
 
 
 class Migration(migrations.Migration):
@@ -65,9 +51,5 @@ class Migration(migrations.Migration):
                 related_name="slots",
                 to="planner.menu",
             ),
-        ),
-        migrations.RunPython(
-            create_menus_for_existing_users,
-            migrations.RunPython.noop,
         ),
     ]
