@@ -220,10 +220,6 @@ function showRecipeDetails(recipeId) {
     const modal = document.getElementById('recipeModal');
     document.getElementById('modalRecipeName').textContent = recipe.name;
 
-    const ingredientsList = recipe.ingredients.map(ri =>
-        `<li>${ri.ingredient_name} - ${ri.weight_grams}г</li>`
-    ).join('');
-
     const editBtn = recipe.can_edit
         ? `<button class="btn btn-primary" onclick="closeRecipeModal(); loadRecipeForEdit(${recipe.id})">Редактировать</button>`
         : '';
@@ -232,40 +228,81 @@ function showRecipeDetails(recipeId) {
         <div class="modal-section">
             <p><strong>Описание:</strong> ${recipe.description || 'Нет описания'}</p>
         </div>
+        <div class="modal-section portion-section">
+            <div class="portion-control">
+                <span class="portion-label">Порции:</span>
+                <button class="btn-portion" onclick="updatePortions(${recipe.id}, -1)">−</button>
+                <span id="portionCount" class="portion-value">1</span>
+                <button class="btn-portion" onclick="updatePortions(${recipe.id}, 1)">+</button>
+            </div>
+        </div>
         <div class="modal-section">
             <h3>Ингредиенты:</h3>
-            <ul>${ingredientsList}</ul>
+            <ul id="modalIngredientsList">
+                ${buildIngredientsList(recipe, 1)}
+            </ul>
         </div>
         <div class="modal-section">
             <h3>Инструкция:</h3>
             <p>${recipe.instructions || 'Нет инструкции'}</p>
         </div>
-        <div class="nutrition-info">
-            <div class="nutrition-card">
-                <h4>Калории</h4>
-                <div class="value">${(recipe.total_calories || 0).toFixed(0)}</div>
-                <small>ккал</small>
-            </div>
-            <div class="nutrition-card">
-                <h4>Белки</h4>
-                <div class="value">${(recipe.total_protein || 0).toFixed(1)}</div>
-                <small>г</small>
-            </div>
-            <div class="nutrition-card">
-                <h4>Жиры</h4>
-                <div class="value">${(recipe.total_fat || 0).toFixed(1)}</div>
-                <small>г</small>
-            </div>
-            <div class="nutrition-card">
-                <h4>Углеводы</h4>
-                <div class="value">${(recipe.total_carbs || 0).toFixed(1)}</div>
-                <small>г</small>
-            </div>
+        <div class="nutrition-info" id="modalNutritionInfo">
+            ${buildNutritionCards(recipe, 1)}
         </div>
         <div class="modal-actions">${editBtn}</div>
     `;
 
     modal.classList.add('active');
+}
+
+function buildIngredientsList(recipe, portions) {
+    return recipe.ingredients.map(ri => {
+        const scaledWeight = Math.round(ri.weight_grams * portions);
+        return `<li>${ri.ingredient_name} — <strong>${scaledWeight}г</strong></li>`;
+    }).join('');
+}
+
+function buildNutritionCards(recipe, portions) {
+    const cal = ((recipe.total_calories || 0) * portions).toFixed(0);
+    const prot = ((recipe.total_protein || 0) * portions).toFixed(1);
+    const fat = ((recipe.total_fat || 0) * portions).toFixed(1);
+    const carbs = ((recipe.total_carbs || 0) * portions).toFixed(1);
+
+    return `
+        <div class="nutrition-card">
+            <h4>Калории</h4>
+            <div class="value">${cal}</div>
+            <small>ккал</small>
+        </div>
+        <div class="nutrition-card">
+            <h4>Белки</h4>
+            <div class="value">${prot}</div>
+            <small>г</small>
+        </div>
+        <div class="nutrition-card">
+            <h4>Жиры</h4>
+            <div class="value">${fat}</div>
+            <small>г</small>
+        </div>
+        <div class="nutrition-card">
+            <h4>Углеводы</h4>
+            <div class="value">${carbs}</div>
+            <small>г</small>
+        </div>
+    `;
+}
+
+function updatePortions(recipeId, delta) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+
+    const countEl = document.getElementById('portionCount');
+    let current = parseInt(countEl.textContent, 10) || 1;
+    current = Math.max(1, current + delta);
+    countEl.textContent = current;
+
+    document.getElementById('modalIngredientsList').innerHTML = buildIngredientsList(recipe, current);
+    document.getElementById('modalNutritionInfo').innerHTML = buildNutritionCards(recipe, current);
 }
 
 function closeRecipeModal() {
