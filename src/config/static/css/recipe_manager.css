@@ -684,6 +684,60 @@ textarea {
     margin-top: 16px;
 }
 
+.portion-section {
+    display: flex;
+    align-items: center;
+}
+
+.portion-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-light);
+    padding: 8px 16px;
+    border-radius: 10px;
+}
+
+.portion-label {
+    font-weight: 600;
+    color: var(--dark);
+    margin-right: 4px;
+}
+
+.btn-portion {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--white);
+    font-size: 1.3em;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.15s;
+    line-height: 1;
+}
+
+.btn-portion:hover {
+    background: var(--primary-dark);
+    transform: scale(1.1);
+}
+
+.btn-portion:active {
+    transform: scale(0.95);
+}
+
+.portion-value {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: var(--dark);
+    min-width: 28px;
+    text-align: center;
+}
+
 .modal-actions--end {
     justify-content: flex-end;
 }
