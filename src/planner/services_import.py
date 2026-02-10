@@ -1,16 +1,11 @@
 """Service for importing ingredients from external store URLs (e.g. 5ka.ru)."""
 
+import json
 import logging
-import os
 import re
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +19,7 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
-SELENIUM_PAGE_LOAD_TIMEOUT = 15
-SELENIUM_BODY_WAIT_TIMEOUT = 15
+MAX_HTML_SIZE = 5 * 1024 * 1024
 
 
 class IngredientImportError(Exception):
@@ -43,97 +37,59 @@ class ParsedIngredient:
     carbs: float
 
 
-def import_ingredient_from_url(url: str) -> ParsedIngredient:
-    """Import ingredient data from a supported store URL.
+def import_ingredient_from_html(url: str, html: str) -> ParsedIngredient:
+    """Import ingredient data from user-provided HTML of a supported store URL.
 
-    Currently supports 5ka.ru product pages.
+    The browser fetches the page to bypass anti-bot protection,
+    then sends the HTML here for parsing.
     """
-    validated_url, plu = _extract_plu_from_url(url)
-    return _fetch_and_parse_product(validated_url, plu)
+    _validate_url(url)
+    _validate_html(html)
+    plu = _extract_plu_from_url(url)
+    return _parse_product_page(html, plu)
 
 
-def _extract_plu_from_url(url: str) -> tuple[str, str]:
-    """Extract PLU (product ID) and validated URL from a 5ka.ru product URL.
+def _validate_url(url: str) -> None:
+    """Validate that the URL matches a supported store pattern."""
+    if not PYATEROCHKA_URL_PATTERN.match(url) and not PYATEROCHKA_URL_PATTERN_ALT.match(
+        url
+    ):
+        raise IngredientImportError(
+            "Неподдерживаемый формат ссылки. "
+            "Поддерживаются ссылки вида: https://5ka.ru/product/название--123456/"
+        )
+
+
+def _validate_html(html: str) -> None:
+    """Validate that the provided HTML content is not empty and within size limits."""
+    if not html or not html.strip():
+        raise IngredientImportError(
+            "HTML-содержимое страницы не предоставлено. "
+            "Откройте страницу продукта в браузере и попробуйте снова."
+        )
+    if len(html) > MAX_HTML_SIZE:
+        raise IngredientImportError("Содержимое страницы слишком большое.")
+
+
+def _extract_plu_from_url(url: str) -> str:
+    """Extract PLU (product ID) from a 5ka.ru product URL.
 
     Uses match() to anchor the pattern to the start of the string,
     preventing SSRF via URLs that embed a valid 5ka.ru substring
     after an attacker-controlled host.
-
-    Returns a tuple of (validated_url, plu).
     """
     match = PYATEROCHKA_URL_PATTERN.match(url)
     if match:
-        return match.group(0), match.group("plu")
+        return match.group("plu")
 
     match = PYATEROCHKA_URL_PATTERN_ALT.match(url)
     if match:
-        return match.group(0), match.group("plu")
+        return match.group("plu")
 
     raise IngredientImportError(
         "Неподдерживаемый формат ссылки. "
         "Поддерживаются ссылки вида: https://5ka.ru/product/название--123456/"
     )
-
-
-def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
-    """Fetch product page and extract ingredient data."""
-    try:
-        html = _fetch_page(url)
-    except IngredientImportError:
-        raise
-    except Exception as exc:
-        logger.warning("Failed to fetch %s: %s", url, exc)
-        raise IngredientImportError(
-            "Не удалось загрузить страницу. Проверьте ссылку и попробуйте снова."
-        ) from exc
-
-    return _parse_product_page(html, plu)
-
-
-def _fetch_page(url: str) -> str:
-    """Fetch page content using a local headless Chrome via Selenium.
-
-    Launches a headless Chromium process to render the page,
-    bypassing anti-bot protection that blocks plain HTTP requests.
-    """
-    driver = _create_webdriver()
-    try:
-        driver.set_page_load_timeout(SELENIUM_PAGE_LOAD_TIMEOUT)
-        driver.get(url)
-        WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        return driver.page_source
-    finally:
-        driver.quit()
-
-
-def _create_webdriver() -> webdriver.Chrome:
-    """Create a local headless Chrome WebDriver instance."""
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--lang=ru-RU")
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-
-    chrome_bin = os.environ.get("CHROME_BIN")
-    if chrome_bin:
-        options.binary_location = chrome_bin
-
-    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
-    service = (
-        ChromeService(executable_path=chromedriver_path)
-        if chromedriver_path
-        else ChromeService()
-    )
-
-    return webdriver.Chrome(service=service, options=options)
 
 
 def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
@@ -170,7 +126,7 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
     if _is_antibot_page(html):
         raise IngredientImportError(
             "Сайт 5ka.ru заблокировал запрос (антибот-защита). "
-            "Попробуйте позже или проверьте настройки сервера."
+            "Попробуйте позже или откройте страницу вручную."
         )
 
     raise IngredientImportError(
@@ -181,8 +137,6 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
 
 def _try_parse_json_ld(soup: BeautifulSoup) -> ParsedIngredient | None:
     """Try to extract product data from JSON-LD structured data."""
-    import json
-
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
@@ -220,8 +174,6 @@ def _extract_from_json_ld_product(data: dict) -> ParsedIngredient | None:
 
 def _try_parse_next_data(soup: BeautifulSoup) -> ParsedIngredient | None:
     """Try to extract product data from Next.js __NEXT_DATA__ script."""
-    import json
-
     script = soup.find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         return None
@@ -242,10 +194,7 @@ def _try_parse_next_data(soup: BeautifulSoup) -> ParsedIngredient | None:
 def _extract_from_product_dict(product: dict) -> ParsedIngredient | None:
     """Extract ingredient data from a product dictionary (common API format)."""
     name = (
-        product.get("name")
-        or product.get("title")
-        or product.get("productName")
-        or ""
+        product.get("name") or product.get("title") or product.get("productName") or ""
     ).strip()
     if not name:
         return None
@@ -257,7 +206,9 @@ def _extract_from_product_dict(product: dict) -> ParsedIngredient | None:
         or {}
     )
     if isinstance(nutrition, dict):
-        calories = _extract_float(nutrition, ["calories", "energy", "kcal", "energyKcal"])
+        calories = _extract_float(
+            nutrition, ["calories", "energy", "kcal", "energyKcal"]
+        )
         protein = _extract_float(nutrition, ["protein", "proteins", "proteinContent"])
         fat = _extract_float(nutrition, ["fat", "fats", "fatContent"])
         carbs = _extract_float(
@@ -292,12 +243,19 @@ def _extract_float(data: dict, keys: list[str]) -> float:
 
 
 def _extract_from_properties_list(
-    name: str, properties: list[dict],
+    name: str,
+    properties: list[dict],
 ) -> ParsedIngredient | None:
     """Extract nutritional data from a list of product properties/characteristics."""
     nutrition_map = {}
 
-    calorie_keys = {"калорийность", "энергетическая ценность", "ккал", "калории", "energy"}
+    calorie_keys = {
+        "калорийность",
+        "энергетическая ценность",
+        "ккал",
+        "калории",
+        "energy",
+    }
     protein_keys = {"белки", "белок", "protein"}
     fat_keys = {"жиры", "жир", "fat"}
     carbs_keys = {"углеводы", "carbs", "carbohydrates"}
@@ -438,12 +396,13 @@ def _find_nutrition_value(text: str, patterns: list[str]) -> float | None:
 
 def _try_parse_embedded_json(html: str, plu: str) -> ParsedIngredient | None:
     """Try to find product JSON embedded in script tags or JS variables."""
-    import json
-
     patterns = [
-        re.compile(r'window\.__(?:INITIAL_STATE|PRELOADED_STATE|STORE__)__\s*=\s*({.+?})\s*;', re.DOTALL),
-        re.compile(r'window\.__data\s*=\s*({.+?})\s*;', re.DOTALL),
-        re.compile(r'"plu"\s*:\s*' + re.escape(plu) + r'[^}]*}[^}]*}', re.DOTALL),
+        re.compile(
+            r"window\.__(?:INITIAL_STATE|PRELOADED_STATE|STORE__)__\s*=\s*({.+?})\s*;",
+            re.DOTALL,
+        ),
+        re.compile(r"window\.__data\s*=\s*({.+?})\s*;", re.DOTALL),
+        re.compile(r'"plu"\s*:\s*' + re.escape(plu) + r"[^}]*}[^}]*}", re.DOTALL),
     ]
 
     for pattern in patterns:
