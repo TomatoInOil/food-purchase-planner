@@ -1,5 +1,8 @@
 /**
  * Ingredient CRUD, rendering, filtering, and import from external URLs.
+ *
+ * Import flow: the browser fetches the product page HTML directly
+ * (bypassing anti-bot protection) and sends it to the backend for parsing.
  */
 
 async function importIngredientFromUrl(event) {
@@ -11,12 +14,15 @@ async function importIngredientFromUrl(event) {
     const btn = document.getElementById('importBtn');
     const originalText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = '⏳ Загрузка...';
+    btn.textContent = '⏳ Загрузка страницы...';
 
     try {
+        const html = await fetchProductPageHtml(url);
+
+        btn.textContent = '⏳ Импорт...';
         await apiFetch('/api/ingredients/import-url/', {
             method: 'POST',
-            body: { url }
+            body: { url, html }
         });
         ingredients = await apiFetch('/api/ingredients/');
         form.reset();
@@ -27,6 +33,27 @@ async function importIngredientFromUrl(event) {
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
+    }
+}
+
+async function fetchProductPageHtml(url) {
+    try {
+        const response = await fetch(url, {
+            mode: 'cors',
+            credentials: 'omit',
+        });
+        if (!response.ok) {
+            throw new Error('Сайт вернул ошибку: ' + response.status);
+        }
+        return await response.text();
+    } catch (e) {
+        if (e instanceof TypeError) {
+            throw new Error(
+                'Не удалось загрузить страницу. Сайт заблокировал запрос (CORS). '
+                + 'Попробуйте другую ссылку или добавьте ингредиент вручную.'
+            );
+        }
+        throw e;
     }
 }
 

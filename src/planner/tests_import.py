@@ -1,7 +1,6 @@
 """Tests for ingredient import from external URLs (5ka.ru)."""
 
 import json
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -13,7 +12,7 @@ from planner.services_import import (
     _is_antibot_page,
     _parse_nutrition_from_text,
     _parse_product_page,
-    import_ingredient_from_url,
+    import_ingredient_from_html,
 )
 
 User = get_user_model()
@@ -302,14 +301,13 @@ class IsAntibotPageTests(TestCase):
         self.assertFalse(_is_antibot_page(SAMPLE_HTML_WITH_JSON_LD))
 
 
-class ImportIngredientFromUrlTests(TestCase):
-    """Test the full import flow with mocked HTTP responses."""
+class ImportIngredientFromHtmlTests(TestCase):
+    """Test the full import flow with pre-fetched HTML."""
 
-    @patch("planner.services_import._fetch_page")
-    def test_successful_import_json_ld(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_WITH_JSON_LD
-        result = import_ingredient_from_url(
-            "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
+    def test_successful_import_json_ld(self):
+        result = import_ingredient_from_html(
+            "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
+            SAMPLE_HTML_WITH_JSON_LD,
         )
         self.assertEqual(result.name, "Макароны Barilla Лазанья")
         self.assertEqual(result.calories, 359)
@@ -317,30 +315,33 @@ class ImportIngredientFromUrlTests(TestCase):
         self.assertEqual(result.fat, 2)
         self.assertEqual(result.carbs, 69.7)
 
-    @patch("planner.services_import._fetch_page")
-    def test_successful_import_next_data(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_WITH_NEXT_DATA
-        result = import_ingredient_from_url(
-            "https://5ka.ru/product/moloko-prostokvashino--2085981/"
+    def test_successful_import_next_data(self):
+        result = import_ingredient_from_html(
+            "https://5ka.ru/product/moloko-prostokvashino--2085981/",
+            SAMPLE_HTML_WITH_NEXT_DATA,
         )
         self.assertEqual(result.name, "Молоко Простоквашино 3.2%")
         self.assertEqual(result.calories, 58)
 
-    @patch("planner.services_import._fetch_page")
-    def test_antibot_raises_import_error(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_ANTIBOT
+    def test_antibot_raises_import_error(self):
         with self.assertRaises(IngredientImportError):
-            import_ingredient_from_url(
-                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
+            import_ingredient_from_html(
+                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
+                SAMPLE_HTML_ANTIBOT,
             )
 
     def test_invalid_url_raises_import_error(self):
         with self.assertRaises(IngredientImportError):
-            import_ingredient_from_url("https://example.com/product/123")
+            import_ingredient_from_html(
+                "https://example.com/product/123",
+                SAMPLE_HTML_WITH_JSON_LD,
+            )
 
 
 class IngredientImportApiTests(TestCase):
     """Test the ingredient import API endpoint."""
+
+    VALID_URL = "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
 
     def setUp(self):
         self.client = Client()
@@ -349,14 +350,10 @@ class IngredientImportApiTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    @patch("planner.services_import._fetch_page")
-    def test_import_creates_ingredient(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_WITH_JSON_LD
+    def test_import_creates_ingredient(self):
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps(
-                {"url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"}
-            ),
+            data=json.dumps({"url": self.VALID_URL, "html": SAMPLE_HTML_WITH_JSON_LD}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
@@ -376,7 +373,7 @@ class IngredientImportApiTests(TestCase):
     def test_import_empty_url_returns_400(self):
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps({"url": ""}),
+            data=json.dumps({"url": "", "html": SAMPLE_HTML_WITH_JSON_LD}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
@@ -385,7 +382,16 @@ class IngredientImportApiTests(TestCase):
     def test_import_missing_url_returns_400(self):
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps({}),
+            data=json.dumps({"html": SAMPLE_HTML_WITH_JSON_LD}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_import_missing_html_returns_400(self):
+        response = self.client.post(
+            "/api/ingredients/import-url/",
+            data=json.dumps({"url": self.VALID_URL}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
@@ -394,29 +400,26 @@ class IngredientImportApiTests(TestCase):
     def test_import_invalid_url_returns_400(self):
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps({"url": "https://example.com/product/123"}),
+            data=json.dumps({
+                "url": "https://example.com/product/123",
+                "html": SAMPLE_HTML_WITH_JSON_LD,
+            }),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
-    @patch("planner.services_import._fetch_page")
-    def test_import_antibot_returns_400(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_ANTIBOT
+    def test_import_antibot_returns_400(self):
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps(
-                {"url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"}
-            ),
+            data=json.dumps({"url": self.VALID_URL, "html": SAMPLE_HTML_ANTIBOT}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
         self.assertIn("антибот", response.json()["error"])
 
-    @patch("planner.services_import._fetch_page")
-    def test_import_duplicate_ingredient_returns_400(self, mock_fetch):
-        mock_fetch.return_value = SAMPLE_HTML_WITH_JSON_LD
+    def test_import_duplicate_ingredient_returns_400(self):
         Ingredient.objects.create(
             user=self.user,
             name="Макароны Barilla Лазанья",
@@ -424,9 +427,7 @@ class IngredientImportApiTests(TestCase):
         )
         response = self.client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps(
-                {"url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"}
-            ),
+            data=json.dumps({"url": self.VALID_URL, "html": SAMPLE_HTML_WITH_JSON_LD}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
@@ -435,9 +436,7 @@ class IngredientImportApiTests(TestCase):
         anon_client = Client()
         response = anon_client.post(
             "/api/ingredients/import-url/",
-            data=json.dumps(
-                {"url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"}
-            ),
+            data=json.dumps({"url": self.VALID_URL, "html": SAMPLE_HTML_WITH_JSON_LD}),
             content_type="application/json",
         )
         self.assertIn(response.status_code, [401, 403])
