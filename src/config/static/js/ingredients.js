@@ -1,5 +1,9 @@
 /**
  * Ingredient CRUD, rendering, filtering, and import from external URLs.
+ *
+ * Import flow: the browser fetches the product page directly (bypassing
+ * anti-bot protection as a real client). If CORS blocks the request,
+ * a fallback textarea is shown for manual HTML paste.
  */
 
 async function importIngredientFromUrl(event) {
@@ -14,20 +18,84 @@ async function importIngredientFromUrl(event) {
     btn.textContent = '⏳ Загрузка...';
 
     try {
-        await apiFetch('/api/ingredients/import-url/', {
-            method: 'POST',
-            body: { url }
-        });
-        ingredients = await apiFetch('/api/ingredients/');
-        form.reset();
-        renderIngredients();
-        showToast('Ингредиент успешно импортирован!');
+        const html = await _fetchPageHtml(url);
+        if (html) {
+            await _submitImport(url, html, form);
+        } else {
+            _showHtmlFallback(url);
+        }
     } catch (e) {
         showError(e.message || 'Ошибка импорта ингредиента');
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
     }
+}
+
+async function importIngredientFromHtml(event) {
+    event.preventDefault();
+    const url = document.getElementById('importFallbackUrl').value;
+    const html = document.getElementById('importHtmlInput').value.trim();
+    if (!html) {
+        showError('Вставьте содержимое страницы');
+        return;
+    }
+
+    const btn = document.getElementById('importHtmlBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Загрузка...';
+
+    try {
+        await _submitImport(url, html, document.getElementById('importIngredientForm'));
+        _hideHtmlFallback();
+    } catch (e) {
+        showError(e.message || 'Ошибка импорта ингредиента');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+async function _fetchPageHtml(url) {
+    try {
+        const resp = await fetch(url, {
+            mode: 'cors',
+            credentials: 'omit',
+        });
+        if (resp.ok) {
+            return await resp.text();
+        }
+    } catch (_ignored) { /* CORS or network error — use fallback */ }
+    return null;
+}
+
+async function _submitImport(url, html, form) {
+    await apiFetch('/api/ingredients/import-url/', {
+        method: 'POST',
+        body: { url, html }
+    });
+    ingredients = await apiFetch('/api/ingredients/');
+    form.reset();
+    renderIngredients();
+    showToast('Ингредиент успешно импортирован!');
+}
+
+function _showHtmlFallback(url) {
+    document.getElementById('importFallbackUrl').value = url;
+    document.getElementById('importHtmlFallback').style.display = 'block';
+    document.getElementById('importHtmlInput').value = '';
+    document.getElementById('importHtmlInput').focus();
+}
+
+function _hideHtmlFallback() {
+    document.getElementById('importHtmlFallback').style.display = 'none';
+    document.getElementById('importHtmlInput').value = '';
+}
+
+function openImportUrl() {
+    const url = document.getElementById('importFallbackUrl').value;
+    if (url) window.open(url, '_blank');
 }
 
 async function saveIngredient(event) {

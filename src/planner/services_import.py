@@ -1,16 +1,14 @@
-"""Service for importing ingredients from external store URLs (e.g. 5ka.ru)."""
+"""Service for importing ingredients from external store URLs (e.g. 5ka.ru).
+
+The HTML content is expected to be fetched by the user's browser (client-side)
+and sent to the server for parsing, bypassing anti-bot protections.
+"""
 
 import logging
-import os
 import re
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +21,6 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     r"https?://(?:www\.)?5ka\.ru/product/(?P<plu>\d+)/(?P<slug>[a-z0-9-]+?)/?",
     re.IGNORECASE,
 )
-
-SELENIUM_PAGE_LOAD_TIMEOUT = 15
-SELENIUM_BODY_WAIT_TIMEOUT = 15
 
 
 class IngredientImportError(Exception):
@@ -43,13 +38,14 @@ class ParsedIngredient:
     carbs: float
 
 
-def import_ingredient_from_url(url: str) -> ParsedIngredient:
-    """Import ingredient data from a supported store URL.
+def import_ingredient(url: str, html: str) -> ParsedIngredient:
+    """Import ingredient data from HTML fetched by the user's browser.
 
-    Currently supports 5ka.ru product pages.
+    Validates the URL to extract the product PLU, then parses
+    the provided HTML content. Currently supports 5ka.ru product pages.
     """
-    validated_url, plu = _extract_plu_from_url(url)
-    return _fetch_and_parse_product(validated_url, plu)
+    _validated_url, plu = _extract_plu_from_url(url)
+    return _parse_product_page(html, plu)
 
 
 def _extract_plu_from_url(url: str) -> tuple[str, str]:
@@ -73,67 +69,6 @@ def _extract_plu_from_url(url: str) -> tuple[str, str]:
         "Неподдерживаемый формат ссылки. "
         "Поддерживаются ссылки вида: https://5ka.ru/product/название--123456/"
     )
-
-
-def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
-    """Fetch product page and extract ingredient data."""
-    try:
-        html = _fetch_page(url)
-    except IngredientImportError:
-        raise
-    except Exception as exc:
-        logger.warning("Failed to fetch %s: %s", url, exc)
-        raise IngredientImportError(
-            "Не удалось загрузить страницу. Проверьте ссылку и попробуйте снова."
-        ) from exc
-
-    return _parse_product_page(html, plu)
-
-
-def _fetch_page(url: str) -> str:
-    """Fetch page content using a local headless Chrome via Selenium.
-
-    Launches a headless Chromium process to render the page,
-    bypassing anti-bot protection that blocks plain HTTP requests.
-    """
-    driver = _create_webdriver()
-    try:
-        driver.set_page_load_timeout(SELENIUM_PAGE_LOAD_TIMEOUT)
-        driver.get(url)
-        WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        return driver.page_source
-    finally:
-        driver.quit()
-
-
-def _create_webdriver() -> webdriver.Chrome:
-    """Create a local headless Chrome WebDriver instance."""
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--lang=ru-RU")
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-
-    chrome_bin = os.environ.get("CHROME_BIN")
-    if chrome_bin:
-        options.binary_location = chrome_bin
-
-    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
-    service = (
-        ChromeService(executable_path=chromedriver_path)
-        if chromedriver_path
-        else ChromeService()
-    )
-
-    return webdriver.Chrome(service=service, options=options)
 
 
 def _parse_product_page(html: str, plu: str) -> ParsedIngredient:

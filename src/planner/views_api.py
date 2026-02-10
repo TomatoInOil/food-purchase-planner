@@ -27,7 +27,7 @@ from planner.services import (
     get_or_create_first_menu,
 )
 from planner.services_friends import get_editable_owner_ids
-from planner.services_import import IngredientImportError, import_ingredient_from_url
+from planner.services_import import IngredientImportError, import_ingredient
 
 logger = logging.getLogger(__name__)
 
@@ -86,18 +86,30 @@ class IngredientViewSet(viewsets.ModelViewSet):
 
 
 class IngredientImportView(APIView):
-    """Import an ingredient from an external store URL (e.g. 5ka.ru)."""
+    """Import an ingredient from HTML fetched by the user's browser.
+
+    Expects ``url`` (for validation/PLU extraction) and ``html``
+    (page source fetched client-side) in the request body.
+    """
 
     def post(self, request):
-        url = (request.data or {}).get("url", "").strip()
+        data = request.data or {}
+        url = data.get("url", "").strip()
+        html = data.get("html", "").strip()
+
         if not url:
             return Response(
                 {"error": "Укажите ссылку на продукт"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if not html:
+            return Response(
+                {"error": "Отсутствует HTML-содержимое страницы"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            parsed = _parse_ingredient_from_url(url)
+            parsed = _parse_ingredient_from_html(url, html)
         except IngredientImportError as exc:
             return Response(
                 {"error": str(exc)},
@@ -278,10 +290,10 @@ class ShoppingListView(APIView):
         return Response(result)
 
 
-def _parse_ingredient_from_url(url):
-    """Call import service and handle errors, returning parsed data or None."""
+def _parse_ingredient_from_html(url, html):
+    """Call import service with client-provided HTML, returning parsed data or None."""
     try:
-        return import_ingredient_from_url(url)
+        return import_ingredient(url, html)
     except IngredientImportError:
         raise
     except Exception:
