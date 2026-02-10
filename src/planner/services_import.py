@@ -61,19 +61,26 @@ def import_ingredient_from_url(url: str) -> ParsedIngredient:
 
     Currently supports 5ka.ru product pages.
     """
-    plu = _extract_plu_from_url(url)
-    return _fetch_and_parse_product(url, plu)
+    validated_url, plu = _extract_plu_from_url(url)
+    return _fetch_and_parse_product(validated_url, plu)
 
 
-def _extract_plu_from_url(url: str) -> str:
-    """Extract PLU (product ID) from a 5ka.ru product URL."""
-    match = PYATEROCHKA_URL_PATTERN.search(url)
+def _extract_plu_from_url(url: str) -> tuple[str, str]:
+    """Extract PLU (product ID) and validated URL from a 5ka.ru product URL.
+
+    Uses match() to anchor the pattern to the start of the string,
+    preventing SSRF via URLs that embed a valid 5ka.ru substring
+    after an attacker-controlled host.
+
+    Returns a tuple of (validated_url, plu).
+    """
+    match = PYATEROCHKA_URL_PATTERN.match(url)
     if match:
-        return match.group("plu")
+        return match.group(0), match.group("plu")
 
-    match = PYATEROCHKA_URL_PATTERN_ALT.search(url)
+    match = PYATEROCHKA_URL_PATTERN_ALT.match(url)
     if match:
-        return match.group("plu")
+        return match.group(0), match.group("plu")
 
     raise ImportError(
         "Неподдерживаемый формат ссылки. "

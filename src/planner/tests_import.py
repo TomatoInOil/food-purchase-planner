@@ -162,23 +162,33 @@ class ExtractPluFromUrlTests(TestCase):
 
     def test_standard_url_format(self):
         url = "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-        self.assertEqual(_extract_plu_from_url(url), "3020941")
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "3020941")
+        self.assertTrue(validated_url.startswith("https://5ka.ru/"))
 
     def test_url_without_trailing_slash(self):
         url = "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941"
-        self.assertEqual(_extract_plu_from_url(url), "3020941")
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "3020941")
+        self.assertTrue(validated_url.startswith("https://5ka.ru/"))
 
     def test_url_with_www(self):
         url = "https://www.5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-        self.assertEqual(_extract_plu_from_url(url), "3020941")
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "3020941")
+        self.assertTrue(validated_url.startswith("https://www.5ka.ru/"))
 
     def test_http_url(self):
         url = "http://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-        self.assertEqual(_extract_plu_from_url(url), "3020941")
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "3020941")
+        self.assertTrue(validated_url.startswith("http://5ka.ru/"))
 
     def test_alt_url_format(self):
         url = "https://5ka.ru/product/2085981/moloko-prostokvashino/"
-        self.assertEqual(_extract_plu_from_url(url), "2085981")
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "2085981")
+        self.assertTrue(validated_url.startswith("https://5ka.ru/"))
 
     def test_invalid_url_raises_error(self):
         with self.assertRaises(ImportError):
@@ -187,6 +197,18 @@ class ExtractPluFromUrlTests(TestCase):
     def test_empty_url_raises_error(self):
         with self.assertRaises(ImportError):
             _extract_plu_from_url("")
+
+    def test_ssrf_url_with_embedded_5ka_pattern_raises_error(self):
+        with self.assertRaises(ImportError):
+            _extract_plu_from_url(
+                "http://169.254.169.254/meta-data?https://5ka.ru/product/x--1/"
+            )
+
+    def test_ssrf_url_with_5ka_in_path_raises_error(self):
+        with self.assertRaises(ImportError):
+            _extract_plu_from_url(
+                "http://evil.com/https://5ka.ru/product/makarony--3020941/"
+            )
 
 
 class ParseProductPageTests(TestCase):
