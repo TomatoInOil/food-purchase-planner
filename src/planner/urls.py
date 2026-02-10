@@ -4,6 +4,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from planner.views_api import (
+    IngredientImportView,
     IngredientViewSet,
     MenuDetailView,
     MenuListCreateView,
@@ -38,6 +39,11 @@ router.register(
 )
 
 urlpatterns = [
+    path(
+        "ingredients/import-url/",
+        IngredientImportView.as_view(),
+        name="ingredient-import-url",
+    ),
     path("menus/", MenuListCreateView.as_view(), name="menu-list-create"),
     path("menus/<int:menu_id>/", MenuDetailView.as_view(), name="menu-detail"),
     path(
