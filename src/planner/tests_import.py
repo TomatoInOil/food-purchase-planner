@@ -1,7 +1,7 @@
 """Tests for ingredient import from external URLs (5ka.ru)."""
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -9,10 +9,14 @@ from django.test import Client, TestCase
 from planner.models import Ingredient
 from planner.services_import import (
     IngredientImportError,
+    _detect_chrome_version,
     _extract_plu_from_url,
+    _has_product_content,
     _is_antibot_page,
+    _is_forbidden_page,
     _parse_nutrition_from_text,
     _parse_product_page,
+    _wait_for_product_content,
     import_ingredient_from_url,
 )
 
@@ -130,6 +134,38 @@ SAMPLE_HTML_ANTIBOT = """
 </html>
 """
 
+SAMPLE_HTML_ANTIBOT_CAPTCHA = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="ROBOTS" content="NOINDEX, NOFOLLOW">
+    <link href="./sp_rotated_captcha/js/style.css" rel="stylesheet">
+    <script src="./sp_rotated_captcha/js/captchaIntGen.js"></script>
+</head>
+<body>
+<div class="captcha-wrap">Please solve the captcha</div>
+</body>
+</html>
+"""
+
+SAMPLE_HTML_FORBIDDEN = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
+  <div style="text-align: center;">
+    <h1>Forbidden</h1>
+    <p id="REQUEST-DATE">Datetime: 2026-01-01 00:00:00 +0000</p>
+    <p id="REQUEST-IP">IP: 1.2.3.4</p>
+    <p id="REQUEST-ID">ID: AbCdEf123</p>
+    <p>If you are not a bot, please copy the report and send it to our support team.</p>
+  </div>
+</body>
+</html>
+"""
+
 SAMPLE_HTML_WITH_EMBEDDED_STATE = """
 <!doctype html>
 <html lang="ru">
@@ -189,6 +225,12 @@ class ExtractPluFromUrlTests(TestCase):
         validated_url, plu = _extract_plu_from_url(url)
         self.assertEqual(plu, "2085981")
         self.assertTrue(validated_url.startswith("https://5ka.ru/"))
+
+    def test_provided_tomato_url(self):
+        url = "https://5ka.ru/product/tomaty-rozovye--3695580/"
+        validated_url, plu = _extract_plu_from_url(url)
+        self.assertEqual(plu, "3695580")
+        self.assertEqual(validated_url, url)
 
     def test_invalid_url_raises_error(self):
         with self.assertRaises(IngredientImportError):
@@ -251,6 +293,16 @@ class ParseProductPageTests(TestCase):
             _parse_product_page(SAMPLE_HTML_ANTIBOT, "3020941")
         self.assertIn("антибот", str(ctx.exception))
 
+    def test_antibot_captcha_page_raises_error(self):
+        with self.assertRaises(IngredientImportError) as ctx:
+            _parse_product_page(SAMPLE_HTML_ANTIBOT_CAPTCHA, "3020941")
+        self.assertIn("антибот", str(ctx.exception))
+
+    def test_forbidden_page_raises_error(self):
+        with self.assertRaises(IngredientImportError) as ctx:
+            _parse_product_page(SAMPLE_HTML_FORBIDDEN, "3020941")
+        self.assertIn("IP", str(ctx.exception))
+
     def test_parse_embedded_state(self):
         result = _parse_product_page(SAMPLE_HTML_WITH_EMBEDDED_STATE, "3020941")
         self.assertEqual(result.name, "Макароны Barilla Лазанья")
@@ -293,13 +345,122 @@ class ParseNutritionFromTextTests(TestCase):
 
 
 class IsAntibotPageTests(TestCase):
-    """Test anti-bot detection."""
+    """Test anti-bot and forbidden page detection."""
 
     def test_servicepipe_detected(self):
         self.assertTrue(_is_antibot_page(SAMPLE_HTML_ANTIBOT))
 
+    def test_captcha_page_detected(self):
+        self.assertTrue(_is_antibot_page(SAMPLE_HTML_ANTIBOT_CAPTCHA))
+
     def test_normal_page_not_detected(self):
         self.assertFalse(_is_antibot_page(SAMPLE_HTML_WITH_JSON_LD))
+
+    def test_forbidden_page_detected(self):
+        self.assertTrue(_is_forbidden_page(SAMPLE_HTML_FORBIDDEN))
+
+    def test_forbidden_not_triggered_on_normal_page(self):
+        self.assertFalse(_is_forbidden_page(SAMPLE_HTML_WITH_JSON_LD))
+
+    def test_forbidden_not_triggered_on_antibot_page(self):
+        self.assertFalse(_is_forbidden_page(SAMPLE_HTML_ANTIBOT))
+
+
+class HasProductContentTests(TestCase):
+    """Test product content detection in HTML."""
+
+    def test_json_ld_detected(self):
+        self.assertTrue(_has_product_content(SAMPLE_HTML_WITH_JSON_LD))
+
+    def test_next_data_detected(self):
+        self.assertTrue(_has_product_content(SAMPLE_HTML_WITH_NEXT_DATA))
+
+    def test_nutrition_text_detected(self):
+        self.assertTrue(_has_product_content(SAMPLE_HTML_WITH_TEXT_NUTRITION))
+
+    def test_antibot_not_detected_as_product(self):
+        self.assertFalse(_has_product_content(SAMPLE_HTML_ANTIBOT))
+
+    def test_empty_html_not_detected(self):
+        self.assertFalse(_has_product_content("<html><body></body></html>"))
+
+    def test_forbidden_page_not_detected_as_product(self):
+        self.assertFalse(_has_product_content(SAMPLE_HTML_FORBIDDEN))
+
+
+class WaitForProductContentTests(TestCase):
+    """Test the polling wait strategy for anti-bot resolution."""
+
+    @patch("planner.services_import.SELENIUM_CONTENT_WAIT_TIMEOUT", 0.1)
+    @patch("planner.services_import.SELENIUM_ANTIBOT_POLL_INTERVAL", 0.05)
+    def test_returns_immediately_when_product_content_found(self):
+        driver = MagicMock()
+        driver.page_source = SAMPLE_HTML_WITH_JSON_LD
+        result = _wait_for_product_content(driver)
+        self.assertIn("application/ld+json", result)
+
+    @patch("planner.services_import.SELENIUM_CONTENT_WAIT_TIMEOUT", 0.1)
+    @patch("planner.services_import.SELENIUM_ANTIBOT_POLL_INTERVAL", 0.05)
+    def test_returns_early_on_antibot_detection(self):
+        driver = MagicMock()
+        driver.page_source = SAMPLE_HTML_ANTIBOT
+        result = _wait_for_product_content(driver)
+        self.assertIn("servicepipe", result.lower())
+
+    @patch("planner.services_import.SELENIUM_CONTENT_WAIT_TIMEOUT", 0.1)
+    @patch("planner.services_import.SELENIUM_ANTIBOT_POLL_INTERVAL", 0.05)
+    def test_returns_early_on_forbidden_page(self):
+        driver = MagicMock()
+        driver.page_source = SAMPLE_HTML_FORBIDDEN
+        result = _wait_for_product_content(driver)
+        self.assertIn("Forbidden", result)
+
+    @patch("planner.services_import.SELENIUM_CONTENT_WAIT_TIMEOUT", 0.2)
+    @patch("planner.services_import.SELENIUM_ANTIBOT_POLL_INTERVAL", 0.05)
+    def test_waits_and_returns_when_content_appears_later(self):
+        driver = MagicMock()
+        call_count = 0
+
+        def dynamic_page_source():
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                return "<html><body>Loading...</body></html>"
+            return SAMPLE_HTML_WITH_JSON_LD
+
+        type(driver).page_source = property(lambda self: dynamic_page_source())
+        result = _wait_for_product_content(driver)
+        self.assertIn("application/ld+json", result)
+
+    @patch("planner.services_import.SELENIUM_CONTENT_WAIT_TIMEOUT", 0.1)
+    @patch("planner.services_import.SELENIUM_ANTIBOT_POLL_INTERVAL", 0.05)
+    def test_returns_last_html_on_timeout(self):
+        driver = MagicMock()
+        driver.page_source = "<html><body>Still loading...</body></html>"
+        result = _wait_for_product_content(driver)
+        self.assertIn("Still loading", result)
+
+
+class DetectChromeVersionTests(TestCase):
+    """Test Chrome version detection."""
+
+    @patch("planner.services_import.subprocess.run")
+    def test_detects_version_from_chrome_output(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="Google Chrome 143.0.7499.146 \n")
+        version = _detect_chrome_version()
+        self.assertEqual(version, "143.0.7499.146")
+
+    @patch("planner.services_import.subprocess.run")
+    def test_returns_fallback_on_failure(self, mock_run):
+        mock_run.side_effect = OSError("Chrome not found")
+        version = _detect_chrome_version()
+        self.assertEqual(version, "120.0.0.0")
+
+    @patch("planner.services_import.subprocess.run")
+    def test_returns_fallback_on_unexpected_output(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="Something unexpected")
+        version = _detect_chrome_version()
+        self.assertEqual(version, "120.0.0.0")
 
 
 class ImportIngredientFromUrlTests(TestCase):
@@ -334,9 +495,36 @@ class ImportIngredientFromUrlTests(TestCase):
                 "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
             )
 
+    @patch("planner.services_import._fetch_page")
+    def test_forbidden_raises_import_error(self, mock_fetch):
+        mock_fetch.return_value = SAMPLE_HTML_FORBIDDEN
+        with self.assertRaises(IngredientImportError) as ctx:
+            import_ingredient_from_url(
+                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
+            )
+        self.assertIn("IP", str(ctx.exception))
+
+    @patch("planner.services_import._fetch_page")
+    def test_captcha_page_raises_import_error(self, mock_fetch):
+        mock_fetch.return_value = SAMPLE_HTML_ANTIBOT_CAPTCHA
+        with self.assertRaises(IngredientImportError) as ctx:
+            import_ingredient_from_url(
+                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
+            )
+        self.assertIn("антибот", str(ctx.exception))
+
     def test_invalid_url_raises_import_error(self):
         with self.assertRaises(IngredientImportError):
             import_ingredient_from_url("https://example.com/product/123")
+
+    @patch("planner.services_import._fetch_page")
+    def test_fetch_exception_raises_import_error(self, mock_fetch):
+        mock_fetch.side_effect = ConnectionError("Network unreachable")
+        with self.assertRaises(IngredientImportError) as ctx:
+            import_ingredient_from_url(
+                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
+            )
+        self.assertIn("загрузить страницу", str(ctx.exception))
 
 
 class IngredientImportApiTests(TestCase):
@@ -372,6 +560,38 @@ class IngredientImportApiTests(TestCase):
                 user=self.user, name="Макароны Barilla Лазанья"
             ).exists()
         )
+
+    @patch("planner.services_import._fetch_page")
+    def test_import_with_next_data_creates_ingredient(self, mock_fetch):
+        mock_fetch.return_value = SAMPLE_HTML_WITH_NEXT_DATA
+        response = self.client.post(
+            "/api/ingredients/import-url/",
+            data=json.dumps(
+                {"url": "https://5ka.ru/product/moloko-prostokvashino--2085981/"}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["name"], "Молоко Простоквашино 3.2%")
+        self.assertEqual(data["calories"], 58)
+        self.assertEqual(data["protein"], 2.9)
+        self.assertEqual(data["fat"], 3.2)
+        self.assertEqual(data["carbs"], 4.7)
+
+    @patch("planner.services_import._fetch_page")
+    def test_import_with_properties_creates_ingredient(self, mock_fetch):
+        mock_fetch.return_value = SAMPLE_HTML_WITH_PROPERTIES
+        response = self.client.post(
+            "/api/ingredients/import-url/",
+            data=json.dumps(
+                {"url": "https://5ka.ru/product/1234567/syr-rossiyskiy/"}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["name"], "Сыр Российский")
 
     def test_import_empty_url_returns_400(self):
         response = self.client.post(
@@ -413,6 +633,20 @@ class IngredientImportApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
         self.assertIn("антибот", response.json()["error"])
+
+    @patch("planner.services_import._fetch_page")
+    def test_import_forbidden_returns_400(self, mock_fetch):
+        mock_fetch.return_value = SAMPLE_HTML_FORBIDDEN
+        response = self.client.post(
+            "/api/ingredients/import-url/",
+            data=json.dumps(
+                {"url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+        self.assertIn("IP", response.json()["error"])
 
     @patch("planner.services_import._fetch_page")
     def test_import_duplicate_ingredient_returns_400(self, mock_fetch):

@@ -1,16 +1,14 @@
 """Service for importing ingredients from external store URLs (e.g. 5ka.ru)."""
 
+import json
 import logging
 import os
 import re
+import subprocess
+import time
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +22,20 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
-SELENIUM_PAGE_LOAD_TIMEOUT = 15
-SELENIUM_BODY_WAIT_TIMEOUT = 15
+SELENIUM_PAGE_LOAD_TIMEOUT = 30
+SELENIUM_CONTENT_WAIT_TIMEOUT = 25
+SELENIUM_ANTIBOT_POLL_INTERVAL = 2
+
+_ANTIBOT_INDICATORS = [
+    "servicepipe.ru",
+    "id_captcha_frame_div",
+    "sp_rotated_captcha",
+]
+
+_FORBIDDEN_INDICATORS = [
+    "<h1>forbidden</h1>",
+    "if you are not a bot",
+]
 
 
 class IngredientImportError(Exception):
@@ -91,35 +101,41 @@ def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
 
 
 def _fetch_page(url: str) -> str:
-    """Fetch page content using a local headless Chrome via Selenium.
+    """Fetch page content using headless Chrome via Selenium.
 
-    Launches a headless Chromium process to render the page,
-    bypassing anti-bot protection that blocks plain HTTP requests.
+    Applies anti-detection measures and waits for the anti-bot JS challenge
+    to resolve before returning the page source.
     """
-    driver = _create_webdriver()
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service as ChromeService
+
+    driver = _create_webdriver(webdriver, ChromeService)
     try:
+        _apply_stealth_scripts(driver)
         driver.set_page_load_timeout(SELENIUM_PAGE_LOAD_TIMEOUT)
         driver.get(url)
-        WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        return driver.page_source
+        return _wait_for_product_content(driver)
     finally:
         driver.quit()
 
 
-def _create_webdriver() -> webdriver.Chrome:
-    """Create a local headless Chrome WebDriver instance."""
-    options = webdriver.ChromeOptions()
+def _create_webdriver(webdriver_module, chrome_service_class):
+    """Create a headless Chrome WebDriver with anti-detection options."""
+    options = webdriver_module.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=ru-RU")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+
+    chrome_version = _detect_chrome_version()
     options.add_argument(
-        "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        f"--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        f"(KHTML, like Gecko) Chrome/{chrome_version} Safari/537.36"
     )
 
     chrome_bin = os.environ.get("CHROME_BIN")
@@ -128,12 +144,84 @@ def _create_webdriver() -> webdriver.Chrome:
 
     chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
     service = (
-        ChromeService(executable_path=chromedriver_path)
+        chrome_service_class(executable_path=chromedriver_path)
         if chromedriver_path
-        else ChromeService()
+        else chrome_service_class()
     )
 
-    return webdriver.Chrome(service=service, options=options)
+    return webdriver_module.Chrome(service=service, options=options)
+
+
+def _apply_stealth_scripts(driver) -> None:
+    """Inject CDP scripts to hide WebDriver detection markers."""
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": (
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+                "window.chrome = {runtime: {}, loadTimes: function(){}, csi: function(){}};"
+                "Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});"
+                "Object.defineProperty(navigator, 'languages', "
+                "{get: () => ['ru-RU', 'ru', 'en-US', 'en']});"
+            )
+        },
+    )
+
+
+def _wait_for_product_content(driver) -> str:
+    """Poll page source until product content appears or anti-bot is confirmed.
+
+    Returns page HTML when product content is detected or after anti-bot
+    is confirmed (so the caller can raise an appropriate error).
+    """
+    deadline = time.monotonic() + SELENIUM_CONTENT_WAIT_TIMEOUT
+    last_html = ""
+    while time.monotonic() < deadline:
+        last_html = driver.page_source
+        if _has_product_content(last_html):
+            logger.debug("Product content detected")
+            return last_html
+        if _is_antibot_page(last_html) or _is_forbidden_page(last_html):
+            logger.debug("Anti-bot or forbidden page detected, stopping early")
+            return last_html
+        time.sleep(SELENIUM_ANTIBOT_POLL_INTERVAL)
+
+    logger.debug("Timed out waiting for product content")
+    return last_html
+
+
+def _has_product_content(html: str) -> bool:
+    """Check if the HTML contains product-related structured data or markup."""
+    html_lower = html.lower()
+    return (
+        "application/ld+json" in html_lower
+        or "__next_data__" in html_lower
+        or ("og:title" in html_lower and "5ka" in html_lower)
+        or bool(re.search(r"калорийность|белки.*жиры|ккал", html_lower))
+    )
+
+
+def _detect_chrome_version() -> str:
+    """Detect installed Chrome version for a consistent User-Agent string."""
+    chrome_bin = os.environ.get("CHROME_BIN", "google-chrome")
+    try:
+        result = subprocess.run(
+            [chrome_bin, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        match = re.search(r"(\d+\.\d+\.\d+\.\d+)", result.stdout)
+        if match:
+            return match.group(1)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "120.0.0.0"
+
+
+# ---------------------------------------------------------------------------
+# HTML parsing strategies
+# ---------------------------------------------------------------------------
 
 
 def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
@@ -145,6 +233,18 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
     3. HTML meta tags and DOM parsing
     4. Embedded JavaScript state/data
     """
+    if _is_antibot_page(html):
+        raise IngredientImportError(
+            "Сайт 5ka.ru заблокировал запрос (антибот-защита). "
+            "Попробуйте позже или проверьте настройки сервера."
+        )
+
+    if _is_forbidden_page(html):
+        raise IngredientImportError(
+            "Сайт 5ka.ru заблокировал запрос (блокировка по IP). "
+            "Попробуйте позже или используйте другой сервер."
+        )
+
     soup = BeautifulSoup(html, "html.parser")
 
     result = _try_parse_json_ld(soup)
@@ -167,12 +267,6 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
     if result:
         return result
 
-    if _is_antibot_page(html):
-        raise IngredientImportError(
-            "Сайт 5ka.ru заблокировал запрос (антибот-защита). "
-            "Попробуйте позже или проверьте настройки сервера."
-        )
-
     raise IngredientImportError(
         "Не удалось извлечь данные о продукте со страницы. "
         "Возможно, формат страницы изменился."
@@ -181,8 +275,6 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
 
 def _try_parse_json_ld(soup: BeautifulSoup) -> ParsedIngredient | None:
     """Try to extract product data from JSON-LD structured data."""
-    import json
-
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
@@ -220,8 +312,6 @@ def _extract_from_json_ld_product(data: dict) -> ParsedIngredient | None:
 
 def _try_parse_next_data(soup: BeautifulSoup) -> ParsedIngredient | None:
     """Try to extract product data from Next.js __NEXT_DATA__ script."""
-    import json
-
     script = soup.find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         return None
@@ -295,7 +385,7 @@ def _extract_from_properties_list(
     name: str, properties: list[dict],
 ) -> ParsedIngredient | None:
     """Extract nutritional data from a list of product properties/characteristics."""
-    nutrition_map = {}
+    nutrition_map: dict[str, float] = {}
 
     calorie_keys = {"калорийность", "энергетическая ценность", "ккал", "калории", "energy"}
     protein_keys = {"белки", "белок", "protein"}
@@ -438,8 +528,6 @@ def _find_nutrition_value(text: str, patterns: list[str]) -> float | None:
 
 def _try_parse_embedded_json(html: str, plu: str) -> ParsedIngredient | None:
     """Try to find product JSON embedded in script tags or JS variables."""
-    import json
-
     patterns = [
         re.compile(r'window\.__(?:INITIAL_STATE|PRELOADED_STATE|STORE__)__\s*=\s*({.+?})\s*;', re.DOTALL),
         re.compile(r'window\.__data\s*=\s*({.+?})\s*;', re.DOTALL),
@@ -497,8 +585,18 @@ def _parse_numeric_value(text: str) -> float | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Anti-bot / blocking detection
+# ---------------------------------------------------------------------------
+
+
 def _is_antibot_page(html: str) -> bool:
     """Check if the page is a ServicePipe or similar anti-bot challenge."""
-    indicators = ["servicepipe.ru", "id_captcha_frame_div", "sp_rotated_captcha"]
     html_lower = html.lower()
-    return any(indicator in html_lower for indicator in indicators)
+    return any(indicator in html_lower for indicator in _ANTIBOT_INDICATORS)
+
+
+def _is_forbidden_page(html: str) -> bool:
+    """Check if the page is a direct IP-based block from ServicePipe."""
+    html_lower = html.lower()
+    return any(indicator in html_lower for indicator in _FORBIDDEN_INDICATORS)
