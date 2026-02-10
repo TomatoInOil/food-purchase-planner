@@ -20,12 +20,7 @@ WORKDIR /app
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         gosu \
-        chromium \
-        chromium-driver \
     && rm -rf /var/lib/apt/lists/*
-
-ENV CHROME_BIN=/usr/bin/chromium
-ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 RUN groupadd --gid 1000 app \
     && useradd --uid 1000 --gid app --shell /bin/sh --create-home app
