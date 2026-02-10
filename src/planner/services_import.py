@@ -1,12 +1,13 @@
 """Service for importing ingredients from external store URLs (e.g. 5ka.ru)."""
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
-from django.conf import settings
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -23,7 +24,6 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
-SELENIUM_PAGE_LOAD_TIMEOUT = 30
 SELENIUM_BODY_WAIT_TIMEOUT = 15
 
 
@@ -90,18 +90,12 @@ def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
 
 
 def _fetch_page(url: str) -> str:
-    """Fetch page content using Selenium remote WebDriver.
+    """Fetch page content using a local headless Chrome via Selenium.
 
-    Connects to a remote Chrome instance to render the page,
+    Launches a headless Chromium process to render the page,
     bypassing anti-bot protection that blocks plain HTTP requests.
     """
-    selenium_url = getattr(settings, "SELENIUM_URL", "")
-    if not selenium_url:
-        raise IngredientImportError(
-            "Импорт ингредиентов недоступен: не настроен Selenium (SELENIUM_URL)."
-        )
-
-    driver = _create_webdriver(selenium_url)
+    driver = _create_webdriver()
     try:
         driver.get(url)
         WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
@@ -112,8 +106,8 @@ def _fetch_page(url: str) -> str:
         driver.quit()
 
 
-def _create_webdriver(selenium_url: str) -> webdriver.Remote:
-    """Create a headless Chrome remote WebDriver instance."""
+def _create_webdriver() -> webdriver.Chrome:
+    """Create a local headless Chrome WebDriver instance."""
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -125,10 +119,19 @@ def _create_webdriver(selenium_url: str) -> webdriver.Remote:
         "user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
-    return webdriver.Remote(
-        command_executor=selenium_url,
-        options=options,
+
+    chrome_bin = os.environ.get("CHROME_BIN")
+    if chrome_bin:
+        options.binary_location = chrome_bin
+
+    chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+    service = (
+        ChromeService(executable_path=chromedriver_path)
+        if chromedriver_path
+        else ChromeService()
     )
+
+    return webdriver.Chrome(service=service, options=options)
 
 
 def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
