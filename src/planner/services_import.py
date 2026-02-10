@@ -24,6 +24,7 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
+SELENIUM_PAGE_LOAD_TIMEOUT = 15
 SELENIUM_BODY_WAIT_TIMEOUT = 15
 
 
@@ -97,6 +98,7 @@ def _fetch_page(url: str) -> str:
     """
     driver = _create_webdriver()
     try:
+        driver.set_page_load_timeout(SELENIUM_PAGE_LOAD_TIMEOUT)
         driver.get(url)
         WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
