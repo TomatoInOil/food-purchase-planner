@@ -19,8 +19,6 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
-CATALOG_API_URL = "https://5d.5ka.ru/api/catalog/v2/stores"
-
 HTTPX_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "

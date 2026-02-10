@@ -199,13 +199,13 @@ class ExtractPluFromUrlTests(TestCase):
             _extract_plu_from_url("")
 
     def test_ssrf_url_with_embedded_5ka_pattern_raises_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             _extract_plu_from_url(
                 "http://169.254.169.254/meta-data?https://5ka.ru/product/x--1/"
             )
 
     def test_ssrf_url_with_5ka_in_path_raises_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             _extract_plu_from_url(
                 "http://evil.com/https://5ka.ru/product/makarony--3020941/"
             )
