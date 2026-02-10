@@ -27,7 +27,7 @@ from planner.services import (
     get_or_create_first_menu,
 )
 from planner.services_friends import get_editable_owner_ids
-from planner.services_import import IngredientImportError, import_ingredient_from_url
+from planner.services_import import IngredientImportError, import_ingredient_from_html
 
 logger = logging.getLogger(__name__)
 
@@ -86,18 +86,34 @@ class IngredientViewSet(viewsets.ModelViewSet):
 
 
 class IngredientImportView(APIView):
-    """Import an ingredient from an external store URL (e.g. 5ka.ru)."""
+    """Import an ingredient from user-provided HTML of a store page (e.g. 5ka.ru).
+
+    The client (browser) fetches the product page to bypass anti-bot protection,
+    then sends the URL and HTML content for server-side parsing.
+    """
 
     def post(self, request):
-        url = (request.data or {}).get("url", "").strip()
+        data = request.data or {}
+        url = data.get("url", "").strip()
+        html = data.get("html", "").strip()
+
         if not url:
             return Response(
                 {"error": "Укажите ссылку на продукт"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if not html:
+            return Response(
+                {
+                    "error": "Не предоставлено содержимое страницы. "
+                    "Откройте ссылку в браузере и попробуйте снова."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            parsed = _parse_ingredient_from_url(url)
+            parsed = _parse_ingredient_from_html(url, html)
         except IngredientImportError as exc:
             return Response(
                 {"error": str(exc)},
@@ -132,9 +148,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context["request"] = self.request
         if self.request and self.request.user.is_authenticated:
-            context["editable_owner_ids"] = get_editable_owner_ids(
-                self.request.user
-            )
+            context["editable_owner_ids"] = get_editable_owner_ids(self.request.user)
         return context
 
     def list(self, request, *args, **kwargs):
@@ -146,9 +160,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
-        out_serializer = RecipeSerializer(
-            recipe, context=self.get_serializer_context()
-        )
+        out_serializer = RecipeSerializer(recipe, context=self.get_serializer_context())
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -235,9 +247,7 @@ class MenuView(APIView):
 
     def get(self, request):
         menu = get_or_create_first_menu(request.user)
-        serializer = MenuSlotsSerializer(
-            instance=menu, context={"request": request}
-        )
+        serializer = MenuSlotsSerializer(instance=menu, context={"request": request})
         return Response(serializer.data)
 
     def put(self, request):
@@ -278,14 +288,14 @@ class ShoppingListView(APIView):
         return Response(result)
 
 
-def _parse_ingredient_from_url(url):
-    """Call import service and handle errors, returning parsed data or None."""
+def _parse_ingredient_from_html(url, html):
+    """Call import service with user-provided HTML, returning parsed data or None."""
     try:
-        return import_ingredient_from_url(url)
+        return import_ingredient_from_html(url, html)
     except IngredientImportError:
         raise
     except Exception:
-        logger.exception("Unexpected error importing ingredient from %s", url)
+        logger.exception("Unexpected error parsing ingredient from %s", url)
         return None
 
 
