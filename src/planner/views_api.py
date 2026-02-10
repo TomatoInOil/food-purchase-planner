@@ -27,8 +27,7 @@ from planner.services import (
     get_or_create_first_menu,
 )
 from planner.services_friends import get_editable_owner_ids
-from planner.services_import import ImportError as IngredientImportError
-from planner.services_import import import_ingredient_from_url
+from planner.services_import import IngredientImportError, import_ingredient_from_url
 
 logger = logging.getLogger(__name__)
 

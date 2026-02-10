@@ -41,7 +41,7 @@ HTTPX_HEADERS = {
 HTTPX_TIMEOUT = 15.0
 
 
-class ImportError(Exception):
+class IngredientImportError(Exception):
     """Raised when ingredient import fails."""
 
 
@@ -82,7 +82,7 @@ def _extract_plu_from_url(url: str) -> tuple[str, str]:
     if match:
         return match.group(0), match.group("plu")
 
-    raise ImportError(
+    raise IngredientImportError(
         "Неподдерживаемый формат ссылки. "
         "Поддерживаются ссылки вида: https://5ka.ru/product/название--123456/"
     )
@@ -94,7 +94,7 @@ def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
         html = _fetch_page(url)
     except httpx.HTTPError as exc:
         logger.warning("Failed to fetch %s: %s", url, exc)
-        raise ImportError(
+        raise IngredientImportError(
             "Не удалось загрузить страницу. Проверьте ссылку и попробуйте снова."
         ) from exc
 
@@ -145,12 +145,12 @@ def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
         return result
 
     if _is_antibot_page(html):
-        raise ImportError(
+        raise IngredientImportError(
             "Сайт 5ka.ru заблокировал запрос (антибот-защита). "
             "Попробуйте позже или проверьте настройки сервера."
         )
 
-    raise ImportError(
+    raise IngredientImportError(
         "Не удалось извлечь данные о продукте со страницы. "
         "Возможно, формат страницы изменился."
     )

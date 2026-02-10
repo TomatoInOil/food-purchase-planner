@@ -8,7 +8,7 @@ from django.test import Client, TestCase
 
 from planner.models import Ingredient
 from planner.services_import import (
-    ImportError,
+    IngredientImportError,
     _extract_plu_from_url,
     _is_antibot_page,
     _parse_nutrition_from_text,
@@ -191,11 +191,11 @@ class ExtractPluFromUrlTests(TestCase):
         self.assertTrue(validated_url.startswith("https://5ka.ru/"))
 
     def test_invalid_url_raises_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             _extract_plu_from_url("https://example.com/product/123")
 
     def test_empty_url_raises_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             _extract_plu_from_url("")
 
     def test_ssrf_url_with_embedded_5ka_pattern_raises_error(self):
@@ -247,7 +247,7 @@ class ParseProductPageTests(TestCase):
         self.assertEqual(result.carbs, 0.4)
 
     def test_antibot_page_raises_error(self):
-        with self.assertRaises(ImportError) as ctx:
+        with self.assertRaises(IngredientImportError) as ctx:
             _parse_product_page(SAMPLE_HTML_ANTIBOT, "3020941")
         self.assertIn("антибот", str(ctx.exception))
 
@@ -260,7 +260,7 @@ class ParseProductPageTests(TestCase):
         self.assertEqual(result.carbs, 69.7)
 
     def test_empty_html_raises_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             _parse_product_page("<html><body></body></html>", "123")
 
 
@@ -329,13 +329,13 @@ class ImportIngredientFromUrlTests(TestCase):
     @patch("planner.services_import._fetch_page")
     def test_antibot_raises_import_error(self, mock_fetch):
         mock_fetch.return_value = SAMPLE_HTML_ANTIBOT
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             import_ingredient_from_url(
                 "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
             )
 
     def test_invalid_url_raises_import_error(self):
-        with self.assertRaises(ImportError):
+        with self.assertRaises(IngredientImportError):
             import_ingredient_from_url("https://example.com/product/123")
 
 
