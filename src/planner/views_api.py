@@ -1,5 +1,7 @@
 """DRF ViewSets and API views for planner API."""
 
+import logging
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.response import Response
@@ -11,7 +13,6 @@ from planner.permissions import (
     IsOwnerOrReadOnly,
     is_system_ingredient,
 )
-from planner.services_friends import get_editable_owner_ids
 from planner.serializers import (
     IngredientSerializer,
     MenuItemSerializer,
@@ -25,6 +26,11 @@ from planner.services import (
     calculate_shopping_list_for_user,
     get_or_create_first_menu,
 )
+from planner.services_friends import get_editable_owner_ids
+from planner.services_import import ImportError as IngredientImportError
+from planner.services_import import import_ingredient_from_url
+
+logger = logging.getLogger(__name__)
 
 
 class IngredientViewSet(viewsets.ModelViewSet):
@@ -78,6 +84,34 @@ class IngredientViewSet(viewsets.ModelViewSet):
             )
         instance.delete()
         return Response({"status": "ok"})
+
+
+class IngredientImportView(APIView):
+    """Import an ingredient from an external store URL (e.g. 5ka.ru)."""
+
+    def post(self, request):
+        url = (request.data or {}).get("url", "").strip()
+        if not url:
+            return Response(
+                {"error": "Укажите ссылку на продукт"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            parsed = _parse_ingredient_from_url(url)
+        except IngredientImportError as exc:
+            return Response(
+                {"error": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if parsed is None:
+            return Response(
+                {"error": "Не удалось импортировать ингредиент"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return _save_imported_ingredient(request, parsed)
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
@@ -243,6 +277,32 @@ class ShoppingListView(APIView):
                 data.get("people_count", 2),
             )
         return Response(result)
+
+
+def _parse_ingredient_from_url(url):
+    """Call import service and handle errors, returning parsed data or None."""
+    try:
+        return import_ingredient_from_url(url)
+    except IngredientImportError:
+        raise
+    except Exception:
+        logger.exception("Unexpected error importing ingredient from %s", url)
+        return None
+
+
+def _save_imported_ingredient(request, parsed):
+    """Validate and save parsed ingredient, returning serialized response."""
+    data = {
+        "name": parsed.name,
+        "calories": parsed.calories,
+        "protein": parsed.protein,
+        "fat": parsed.fat,
+        "carbs": parsed.carbs,
+    }
+    serializer = IngredientSerializer(data=data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 def _replace_menu_slots(menu, body):

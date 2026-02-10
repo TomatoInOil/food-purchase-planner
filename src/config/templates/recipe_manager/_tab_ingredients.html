@@ -3,6 +3,20 @@
         <h2 class="card-title">База ингредиентов</h2>
 
         <div class="ingredient-form-section">
+            <h3>Импорт из Пятёрочки</h3>
+            <form id="importIngredientForm" onsubmit="importIngredientFromUrl(event)">
+                <div class="import-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Ссылка на продукт 5ka.ru</label>
+                        <input type="url" name="importUrl" required
+                               placeholder="https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-import" id="importBtn">📥 Импорт</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="ingredient-form-section">
             <h3>Добавить новый ингредиент</h3>
             <form id="ingredientForm" onsubmit="saveIngredient(event)">
                 <div class="grid-2">

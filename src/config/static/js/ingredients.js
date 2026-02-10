@@ -1,6 +1,34 @@
 /**
- * Ingredient CRUD, rendering and filtering.
+ * Ingredient CRUD, rendering, filtering, and import from external URLs.
  */
+
+async function importIngredientFromUrl(event) {
+    event.preventDefault();
+    const form = event.target;
+    const url = form.importUrl.value.trim();
+    if (!url) return;
+
+    const btn = document.getElementById('importBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Загрузка...';
+
+    try {
+        await apiFetch('/api/ingredients/import-url/', {
+            method: 'POST',
+            body: { url }
+        });
+        ingredients = await apiFetch('/api/ingredients/');
+        form.reset();
+        renderIngredients();
+        showToast('Ингредиент успешно импортирован!');
+    } catch (e) {
+        showError(e.message || 'Ошибка импорта ингредиента');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
 
 async function saveIngredient(event) {
     event.preventDefault();
