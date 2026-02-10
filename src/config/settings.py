@@ -159,3 +159,6 @@ STATICFILES_DIRS = [BASE_DIR / "config" / "static"]
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# Selenium (remote WebDriver URL for headless browser scraping)
+SELENIUM_URL = os.environ.get("SELENIUM_URL", "")

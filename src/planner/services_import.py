@@ -4,8 +4,12 @@ import logging
 import re
 from dataclasses import dataclass
 
-import httpx
 from bs4 import BeautifulSoup
+from django.conf import settings
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 logger = logging.getLogger(__name__)
 
@@ -19,24 +23,8 @@ PYATEROCHKA_URL_PATTERN_ALT = re.compile(
     re.IGNORECASE,
 )
 
-HTTPX_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
-    "image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-}
-
-HTTPX_TIMEOUT = 15.0
+SELENIUM_PAGE_LOAD_TIMEOUT = 30
+SELENIUM_BODY_WAIT_TIMEOUT = 15
 
 
 class IngredientImportError(Exception):
@@ -90,7 +78,9 @@ def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
     """Fetch product page and extract ingredient data."""
     try:
         html = _fetch_page(url)
-    except httpx.HTTPError as exc:
+    except IngredientImportError:
+        raise
+    except Exception as exc:
         logger.warning("Failed to fetch %s: %s", url, exc)
         raise IngredientImportError(
             "Не удалось загрузить страницу. Проверьте ссылку и попробуйте снова."
@@ -100,15 +90,45 @@ def _fetch_and_parse_product(url: str, plu: str) -> ParsedIngredient:
 
 
 def _fetch_page(url: str) -> str:
-    """Fetch page content via HTTP GET."""
-    with httpx.Client(
-        follow_redirects=True,
-        headers=HTTPX_HEADERS,
-        timeout=HTTPX_TIMEOUT,
-    ) as client:
-        response = client.get(url)
-        response.raise_for_status()
-        return response.text
+    """Fetch page content using Selenium remote WebDriver.
+
+    Connects to a remote Chrome instance to render the page,
+    bypassing anti-bot protection that blocks plain HTTP requests.
+    """
+    selenium_url = getattr(settings, "SELENIUM_URL", "")
+    if not selenium_url:
+        raise IngredientImportError(
+            "Импорт ингредиентов недоступен: не настроен Selenium (SELENIUM_URL)."
+        )
+
+    driver = _create_webdriver(selenium_url)
+    try:
+        driver.get(url)
+        WebDriverWait(driver, SELENIUM_BODY_WAIT_TIMEOUT).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        return driver.page_source
+    finally:
+        driver.quit()
+
+
+def _create_webdriver(selenium_url: str) -> webdriver.Remote:
+    """Create a headless Chrome remote WebDriver instance."""
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--lang=ru-RU")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+    return webdriver.Remote(
+        command_executor=selenium_url,
+        options=options,
+    )
 
 
 def _parse_product_page(html: str, plu: str) -> ParsedIngredient:
