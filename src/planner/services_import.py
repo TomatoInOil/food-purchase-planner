@@ -302,17 +302,17 @@ def _extract_from_properties_list(
 
 def _try_parse_meta_tags(soup: BeautifulSoup) -> ParsedIngredient | None:
     """Try to extract product data from meta tags (og:title, etc.)."""
-    og_title = soup.find("meta", property="og:title")
+    og_title = soup.find("meta", attrs={"property": "og:title"})
     if not og_title:
         return None
 
-    name = (og_title.get("content") or "").strip()
+    name = str(og_title.get("content") or "").strip()
     if not name:
         return None
 
-    og_desc = soup.find("meta", property="og:description")
+    og_desc = soup.find("meta", attrs={"property": "og:description"})
     if og_desc:
-        desc = og_desc.get("content", "")
+        desc = str(og_desc.get("content") or "")
         result = _parse_nutrition_from_text(name, desc)
         if result:
             return result
@@ -327,11 +327,12 @@ def _try_parse_html_content(soup: BeautifulSoup) -> ParsedIngredient | None:
         return None
 
     nutrition_text = ""
-    for selector in [
-        {"class_": re.compile(r"nutrit|nutrition|пищев|кбжу", re.I)},
-        {"class_": re.compile(r"product.*detail|detail.*product", re.I)},
-    ]:
-        section = soup.find(["div", "section", "table"], **selector)
+    class_patterns = [
+        re.compile(r"nutrit|nutrition|пищев|кбжу", re.I),
+        re.compile(r"product.*detail|detail.*product", re.I),
+    ]
+    for pattern in class_patterns:
+        section = soup.find(attrs={"class": pattern})
         if section:
             nutrition_text = section.get_text(separator=" ")
             break
