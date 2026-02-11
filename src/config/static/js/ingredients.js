@@ -11,12 +11,14 @@ async function importIngredientFromUrl(event) {
     const btn = document.getElementById('importBtn');
     const originalText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = '⏳ Загрузка...';
+    btn.textContent = '⏳ Загрузка страницы...';
 
     try {
+        const html = await fetchPageHtml(url);
+        btn.textContent = '⏳ Импорт...';
         await apiFetch('/api/ingredients/import-url/', {
             method: 'POST',
-            body: { url }
+            body: { url, html }
         });
         ingredients = await apiFetch('/api/ingredients/');
         form.reset();
@@ -27,6 +29,30 @@ async function importIngredientFromUrl(event) {
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
+    }
+}
+
+async function fetchPageHtml(url) {
+    try {
+        const response = await fetch(url, {
+            mode: 'cors',
+            credentials: 'omit',
+            headers: { 'Accept': 'text/html' }
+        });
+        if (!response.ok) {
+            throw new Error('Не удалось загрузить страницу (HTTP ' + response.status + ')');
+        }
+        return await response.text();
+    } catch (e) {
+        if (e.message && e.message.includes('HTTP ')) {
+            throw e;
+        }
+        throw new Error(
+            'Не удалось загрузить страницу продукта. ' +
+            'Браузер заблокировал запрос (CORS). ' +
+            'Откройте страницу продукта в новой вкладке, ' +
+            'скопируйте HTML-код (Ctrl+U) и попробуйте вставить вручную.'
+        );
     }
 }
 
