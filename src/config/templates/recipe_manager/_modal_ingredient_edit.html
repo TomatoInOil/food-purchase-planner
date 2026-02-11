@@ -1,0 +1,38 @@
+<div id="editIngredientModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Редактировать ингредиент</h2>
+            <button class="close-modal" onclick="closeEditIngredientModal()">&times;</button>
+        </div>
+        <div id="modalEditIngredientContent">
+            <form id="editIngredientForm" onsubmit="saveEditedIngredient(event)">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Название</label>
+                        <input type="text" name="ingredientName" id="editIngredientName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Калории (на 100г)</label>
+                        <input type="number" name="calories" id="editIngredientCalories" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Белки (г на 100г)</label>
+                        <input type="number" name="protein" id="editIngredientProtein" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Жиры (г на 100г)</label>
+                        <input type="number" name="fat" id="editIngredientFat" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Углеводы (г на 100г)</label>
+                        <input type="number" name="carbs" id="editIngredientCarbs" step="0.1" required>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditIngredientModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

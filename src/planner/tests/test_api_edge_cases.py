@@ -89,13 +89,15 @@ class IngredientApiEdgeCaseTests(TestCase):
     def test_create_ingredient_with_float_values(self):
         response = self.client.post(
             "/api/ingredients/",
-            data=json.dumps({
-                "name": "Olive Oil",
-                "calories": 884.5,
-                "protein": 0.0,
-                "fat": 100.0,
-                "carbs": 0.0,
-            }),
+            data=json.dumps(
+                {
+                    "name": "Olive Oil",
+                    "calories": 884.5,
+                    "protein": 0.0,
+                    "fat": 100.0,
+                    "carbs": 0.0,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
@@ -127,14 +129,47 @@ class IngredientApiEdgeCaseTests(TestCase):
         response = self.client.get(f"/api/ingredients/{ing.id}/")
         self.assertEqual(response.status_code, 405)
 
-    def test_update_ingredient_not_allowed(self):
-        ing = Ingredient.objects.create(user=self.user, name="X")
-        response = self.client.put(
+    def test_update_ingredient_success(self):
+        ing = Ingredient.objects.create(
+            user=self.user,
+            name="Old Name",
+            calories=100,
+            protein=10,
+            fat=5,
+            carbs=20,
+        )
+        response = self.client.patch(
             f"/api/ingredients/{ing.id}/",
-            data=json.dumps({"name": "Y"}),
+            data=json.dumps(
+                {
+                    "name": "New Name",
+                    "calories": 150,
+                    "protein": 15,
+                    "fat": 8,
+                    "carbs": 25,
+                }
+            ),
             content_type="application/json",
         )
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["name"], "New Name")
+        self.assertEqual(data["calories"], 150)
+        ing.refresh_from_db()
+        self.assertEqual(ing.name, "New Name")
+        self.assertEqual(ing.calories, 150)
+
+    def test_update_other_users_ingredient_forbidden(self):
+        other = User.objects.create_user(
+            username="bob", password="pass", email="bob@test.com"
+        )
+        ing = Ingredient.objects.create(user=other, name="Secret", calories=0)
+        response = self.client.patch(
+            f"/api/ingredients/{ing.id}/",
+            data=json.dumps({"name": "Hacked"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class RecipeApiEdgeCaseTests(TestCase):
@@ -146,9 +181,7 @@ class RecipeApiEdgeCaseTests(TestCase):
             username="alice", password="pass", email="alice@test.com"
         )
         self.client.force_login(self.user)
-        self.ing = Ingredient.objects.create(
-            user=self.user, name="Tomato", calories=18
-        )
+        self.ing = Ingredient.objects.create(user=self.user, name="Tomato", calories=18)
 
     def test_recipe_list_includes_other_users_recipes(self):
         other = User.objects.create_user(
@@ -184,10 +217,12 @@ class RecipeApiEdgeCaseTests(TestCase):
         )
         response = self.client.put(
             f"/api/recipes/{recipe.id}/",
-            data=json.dumps({
-                "name": "Hacked",
-                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
-            }),
+            data=json.dumps(
+                {
+                    "name": "Hacked",
+                    "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 50}],
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 403)
@@ -195,12 +230,16 @@ class RecipeApiEdgeCaseTests(TestCase):
     def test_recipe_create_sets_current_user_as_owner(self):
         response = self.client.post(
             "/api/recipes/",
-            data=json.dumps({
-                "name": "My Salad",
-                "description": "",
-                "instructions": "",
-                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 100}],
-            }),
+            data=json.dumps(
+                {
+                    "name": "My Salad",
+                    "description": "",
+                    "instructions": "",
+                    "ingredients": [
+                        {"ingredient_id": self.ing.id, "weight_grams": 100}
+                    ],
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
@@ -210,12 +249,16 @@ class RecipeApiEdgeCaseTests(TestCase):
     def test_recipe_create_calculates_nutrition(self):
         response = self.client.post(
             "/api/recipes/",
-            data=json.dumps({
-                "name": "Tomato Soup",
-                "description": "",
-                "instructions": "",
-                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 200}],
-            }),
+            data=json.dumps(
+                {
+                    "name": "Tomato Soup",
+                    "description": "",
+                    "instructions": "",
+                    "ingredients": [
+                        {"ingredient_id": self.ing.id, "weight_grams": 200}
+                    ],
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
@@ -300,12 +343,8 @@ class MenuApiEdgeCaseTests(TestCase):
         recipe = Recipe.objects.create(
             user=self.user, name="R", description="", instructions=""
         )
-        MenuSlot.objects.create(
-            menu=menu, day_of_week=0, meal_type=0, recipe=recipe
-        )
-        MenuSlot.objects.create(
-            menu=menu, day_of_week=1, meal_type=1, recipe=recipe
-        )
+        MenuSlot.objects.create(menu=menu, day_of_week=0, meal_type=0, recipe=recipe)
+        MenuSlot.objects.create(menu=menu, day_of_week=1, meal_type=1, recipe=recipe)
         body = {"2-2": recipe.id}
         self.client.put(
             f"/api/menus/{menu.id}/",
@@ -370,12 +409,14 @@ class ShoppingListEdgeCaseTests(TestCase):
         )
         response = self.client.post(
             "/api/shopping-list/",
-            data=json.dumps({
-                "start_date": today.isoformat(),
-                "end_date": today.isoformat(),
-                "people_count": 1,
-                "menu_id": menu.id,
-            }),
+            data=json.dumps(
+                {
+                    "start_date": today.isoformat(),
+                    "end_date": today.isoformat(),
+                    "people_count": 1,
+                    "menu_id": menu.id,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -386,11 +427,13 @@ class ShoppingListEdgeCaseTests(TestCase):
     def test_shopping_list_with_invalid_menu_id_404(self):
         response = self.client.post(
             "/api/shopping-list/",
-            data=json.dumps({
-                "start_date": "2026-01-01",
-                "end_date": "2026-01-07",
-                "menu_id": 99999,
-            }),
+            data=json.dumps(
+                {
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-01-07",
+                    "menu_id": 99999,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 404)
@@ -402,11 +445,13 @@ class ShoppingListEdgeCaseTests(TestCase):
         menu = Menu.objects.create(user=other, name="Other")
         response = self.client.post(
             "/api/shopping-list/",
-            data=json.dumps({
-                "start_date": "2026-01-01",
-                "end_date": "2026-01-07",
-                "menu_id": menu.id,
-            }),
+            data=json.dumps(
+                {
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-01-07",
+                    "menu_id": menu.id,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 404)
@@ -527,11 +572,13 @@ class FriendShoppingListEdgeCaseTests(TestCase):
         today = date.today()
         response = self.client.post(
             f"/api/friends/{self.friend.id}/shopping-list/",
-            data=json.dumps({
-                "start_date": today.isoformat(),
-                "end_date": (today + timedelta(days=6)).isoformat(),
-                "people_count": 2,
-            }),
+            data=json.dumps(
+                {
+                    "start_date": today.isoformat(),
+                    "end_date": (today + timedelta(days=6)).isoformat(),
+                    "people_count": 2,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -550,12 +597,14 @@ class FriendShoppingListEdgeCaseTests(TestCase):
         )
         response = self.client.post(
             f"/api/friends/{self.friend.id}/shopping-list/",
-            data=json.dumps({
-                "start_date": today.isoformat(),
-                "end_date": today.isoformat(),
-                "people_count": 1,
-                "menu_id": menu.id,
-            }),
+            data=json.dumps(
+                {
+                    "start_date": today.isoformat(),
+                    "end_date": today.isoformat(),
+                    "people_count": 1,
+                    "menu_id": menu.id,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -617,9 +666,7 @@ class EditRecipesRequestEdgeCaseTests(TestCase):
             can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
             can_edit_recipes_requested_by=self.other,
         )
-        response = self.client.post(
-            f"/api/edit-recipes-requests/{fr.id}/accept/"
-        )
+        response = self.client.post(f"/api/edit-recipes-requests/{fr.id}/accept/")
         self.assertEqual(response.status_code, 400)
 
 
