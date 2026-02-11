@@ -56,7 +56,8 @@ class IngredientViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        ingredient = serializer.save()
+        logger.info("Ingredient created: id=%s name=%r by user_id=%s", ingredient.pk, ingredient.name, request.user.pk)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, *args, **kwargs):
@@ -85,6 +86,7 @@ class IngredientViewSet(viewsets.ModelViewSet):
                 {"error": "Ingredient is used in recipes"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        logger.info("Ingredient deleted: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
         instance.delete()
         return Response({"status": "ok"})
 
@@ -111,11 +113,13 @@ class IngredientImportFromContentView(APIView):
         try:
             parsed = parse_ingredient_from_text(content)
         except IngredientImportError as exc:
+            logger.warning("Ingredient import failed for user_id=%s: %s", request.user.pk, exc)
             return Response(
                 {"error": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        logger.info("Ingredient imported from content: name=%r by user_id=%s", parsed.name, request.user.pk)
         return _save_imported_ingredient(request, parsed)
 
 
@@ -150,6 +154,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
+        logger.info("Recipe created: id=%s name=%r by user_id=%s", recipe.pk, recipe.name, request.user.pk)
         out_serializer = RecipeSerializer(recipe, context=self.get_serializer_context())
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -168,6 +173,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        logger.info("Recipe deleted: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
         instance.delete()
         return Response({"status": "ok"})
 
@@ -183,6 +189,7 @@ class MenuListCreateView(APIView):
     def post(self, request):
         name = (request.data or {}).get("name", "Меню на неделю")
         menu = Menu.objects.create(user=request.user, name=name)
+        logger.info("Menu created: id=%s name=%r by user_id=%s", menu.pk, menu.name, request.user.pk)
         serializer = MenuItemSerializer(menu)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -217,6 +224,7 @@ class MenuDetailView(APIView):
 
     def delete(self, request, menu_id):
         menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        logger.info("Menu deleted: id=%s by user_id=%s", menu.pk, request.user.pk)
         menu.delete()
         return Response({"status": "ok"})
 

@@ -1,5 +1,7 @@
 """DRF views for friends and friend requests."""
 
+import logging
+
 from django.db import models
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
@@ -24,6 +26,8 @@ from planner.services_friends import (
     get_friend_request_between,
     get_friend_user_or_404,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MyFriendCodeView(APIView):
@@ -65,6 +69,10 @@ class SendFriendRequestView(APIView):
             from_user=request.user,
             to_user=to_user,
             status=FriendRequest.STATUS_PENDING,
+        )
+        logger.info(
+            "Friend request sent: from_user_id=%s to_user_id=%s",
+            request.user.pk, to_user.pk,
         )
         serializer = FriendRequestSerializer(friend_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -116,6 +124,10 @@ class FriendRemoveView(APIView):
 
         friend_request.status = FriendRequest.STATUS_REMOVED
         friend_request.save(update_fields=["status"])
+        logger.info(
+            "Friend removed: user_id=%s removed friend user_id=%s",
+            request.user.pk, user_id,
+        )
         return Response({"success": True})
 
 
@@ -144,6 +156,10 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         friend_request.status = FriendRequest.STATUS_ACCEPTED
         friend_request.save(update_fields=["status"])
+        logger.info(
+            "Friend request accepted: request_id=%s by user_id=%s",
+            friend_request.pk, request.user.pk,
+        )
 
         reverse_qs = FriendRequest.objects.filter(
             from_user=friend_request.to_user,
@@ -166,6 +182,10 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         friend_request.status = FriendRequest.STATUS_DECLINED
         friend_request.save(update_fields=["status"])
+        logger.info(
+            "Friend request declined: request_id=%s by user_id=%s",
+            friend_request.pk, request.user.pk,
+        )
 
         serializer = self.get_serializer(friend_request)
         return Response(serializer.data)
@@ -186,6 +206,10 @@ class FriendSendEditRecipesRequestView(APIView):
         friend_request.can_edit_recipes_requested_by = request.user
         friend_request.save(
             update_fields=["can_edit_recipes_status", "can_edit_recipes_requested_by"]
+        )
+        logger.info(
+            "Edit-recipes request sent: user_id=%s to friend user_id=%s",
+            request.user.pk, user_id,
         )
         return Response({
             "success": True,
@@ -208,6 +232,10 @@ class FriendRevokeEditRecipesView(APIView):
         friend_request.can_edit_recipes_requested_by = None
         friend_request.save(
             update_fields=["can_edit_recipes_status", "can_edit_recipes_requested_by"]
+        )
+        logger.info(
+            "Edit-recipes revoked: user_id=%s for friend user_id=%s",
+            request.user.pk, user_id,
         )
         return Response({
             "success": True,
