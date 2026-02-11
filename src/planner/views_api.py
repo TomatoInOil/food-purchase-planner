@@ -64,18 +64,31 @@ class IngredientViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def update(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        instance = self.get_object()
+        if is_system_ingredient(instance):
+            return Response(
+                {"error": "Cannot update system ingredient"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = self.get_serializer(instance, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
     def partial_update(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        instance = self.get_object()
+        if is_system_ingredient(instance):
+            return Response(
+                {"error": "Cannot update system ingredient"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id != request.user.id:
-            return Response(
-                {"error": "Not allowed to delete this ingredient"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         if is_system_ingredient(instance):
             return Response(
                 {"error": "Cannot delete system ingredient"},

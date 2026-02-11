@@ -54,9 +54,13 @@ async function saveIngredient(event) {
 function renderIngredients() {
     const tbody = document.getElementById('ingredientTableBody');
     tbody.innerHTML = ingredients.map(ing => {
+        const editBtn = ing.is_owner
+            ? `<button type="button" class="btn-icon" onclick="openEditIngredientModal(${ing.id})" title="Редактировать">✏️</button>`
+            : '';
         const deleteBtn = ing.is_owner
             ? `<button type="button" class="btn-icon" onclick="deleteIngredient(${ing.id})" title="Удалить">❌</button>`
             : '';
+        const actions = editBtn || deleteBtn ? `${editBtn}${deleteBtn}` : '';
         return `
         <tr>
             <td><strong>${ing.name}</strong></td>
@@ -64,7 +68,7 @@ function renderIngredients() {
             <td>${ing.protein}</td>
             <td>${ing.fat}</td>
             <td>${ing.carbs}</td>
-            <td>${deleteBtn}</td>
+            <td>${actions}</td>
         </tr>
     `}).join('');
 }
@@ -87,5 +91,51 @@ async function deleteIngredient(ingredientId) {
         showToast('Ингредиент удалён');
     } catch (e) {
         showError(e.message || 'Ошибка удаления ингредиента');
+    }
+}
+
+function openEditIngredientModal(ingredientId) {
+    const ingredient = ingredients.find(ing => ing.id === ingredientId);
+    if (!ingredient) return;
+
+    editingIngredientId = ingredientId;
+    document.getElementById('editIngredientName').value = ingredient.name;
+    document.getElementById('editIngredientCalories').value = ingredient.calories;
+    document.getElementById('editIngredientProtein').value = ingredient.protein;
+    document.getElementById('editIngredientFat').value = ingredient.fat;
+    document.getElementById('editIngredientCarbs').value = ingredient.carbs;
+    document.getElementById('editIngredientModal').classList.add('active');
+}
+
+function closeEditIngredientModal() {
+    document.getElementById('editIngredientModal').classList.remove('active');
+    editingIngredientId = null;
+    document.getElementById('editIngredientForm').reset();
+}
+
+async function saveEditedIngredient(event) {
+    event.preventDefault();
+    if (!editingIngredientId) return;
+
+    const form = event.target;
+    const body = {
+        name: form.ingredientName.value.trim(),
+        calories: parseFloat(form.calories.value),
+        protein: parseFloat(form.protein.value),
+        fat: parseFloat(form.fat.value),
+        carbs: parseFloat(form.carbs.value)
+    };
+
+    try {
+        await apiFetch(`/api/ingredients/${editingIngredientId}/`, {
+            method: 'PATCH',
+            body
+        });
+        ingredients = await apiFetch('/api/ingredients/');
+        renderIngredients();
+        closeEditIngredientModal();
+        showToast('Ингредиент обновлён');
+    } catch (e) {
+        showError(e.message || 'Ошибка обновления ингредиента');
     }
 }

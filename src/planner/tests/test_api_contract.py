@@ -107,6 +107,20 @@ class IngredientApiTests(ApiTestBase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
+    def test_ingredient_update_system_ingredient_400(self):
+        system_user = User.objects.create_user(
+            username="system", password="x", email="system@local"
+        )
+        ing = Ingredient.objects.create(user=system_user, name="SystemIng", calories=0)
+        self.client.force_login(system_user)
+        response = self.client.patch(
+            f"/api/ingredients/{ing.id}/",
+            data='{"name":"Updated"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
 
 class RecipeApiTests(ApiTestBase):
     def setUp(self):
@@ -439,8 +453,7 @@ class RecipeListQueryCountTests(TestCase):
         n_large = len(ctx_large)
 
         details = "\n".join(
-            f"  {i+1}. {q['sql'][:120]}"
-            for i, q in enumerate(ctx_large)
+            f"  {i + 1}. {q['sql'][:120]}" for i, q in enumerate(ctx_large)
         )
         self.assertEqual(
             n_small,
@@ -1013,9 +1026,7 @@ class FriendMenuEditTests(ApiTestBase):
         )
         MenuSlot.objects.create(menu=menu, day_of_week=0, meal_type=0, recipe=recipe)
 
-        response = self.client.get(
-            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
-        )
+        response = self.client.get(f"/api/friends/{self.friend.id}/menus/{menu.id}/")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["0-0"], recipe.id)
@@ -1078,9 +1089,7 @@ class FriendMenuEditTests(ApiTestBase):
         self._make_friends_with_edit()
         menu = Menu.objects.create(user=self.friend, name="To Delete")
 
-        response = self.client.delete(
-            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
-        )
+        response = self.client.delete(f"/api/friends/{self.friend.id}/menus/{menu.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Menu.objects.filter(pk=menu.id).exists())
 
@@ -1088,9 +1097,7 @@ class FriendMenuEditTests(ApiTestBase):
         self._make_friends_without_edit()
         menu = Menu.objects.create(user=self.friend, name="Protected")
 
-        response = self.client.delete(
-            f"/api/friends/{self.friend.id}/menus/{menu.id}/"
-        )
+        response = self.client.delete(f"/api/friends/{self.friend.id}/menus/{menu.id}/")
         self.assertEqual(response.status_code, 403)
 
     def test_edit_is_bidirectional(self):
@@ -1222,9 +1229,7 @@ class EditRecipesRequestFlowTests(ApiTestBase):
         self.fr.can_edit_recipes_requested_by = self.user
         self.fr.save()
 
-        response = self.client.post(
-            f"/api/edit-recipes-requests/{self.fr.id}/accept/"
-        )
+        response = self.client.post(f"/api/edit-recipes-requests/{self.fr.id}/accept/")
         self.assertEqual(response.status_code, 404)
 
     def test_revoke_edit_recipes(self):
