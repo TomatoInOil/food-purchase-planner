@@ -27,7 +27,11 @@ from planner.services import (
     get_or_create_first_menu,
 )
 from planner.services_friends import get_editable_owner_ids
-from planner.services_import import IngredientImportError, import_ingredient_from_html
+from planner.services_import import (
+    MAX_CONTENT_SIZE,
+    IngredientImportError,
+    parse_ingredient_from_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,44 +89,30 @@ class IngredientViewSet(viewsets.ModelViewSet):
         return Response({"status": "ok"})
 
 
-class IngredientImportView(APIView):
-    """Import an ingredient from user-provided HTML of a store page (e.g. 5ka.ru).
-
-    The client (browser) fetches the product page to bypass anti-bot protection,
-    then sends the URL and HTML content for server-side parsing.
-    """
+class IngredientImportFromContentView(APIView):
+    """Import an ingredient from pasted page content (e.g. 5ka.ru Ctrl+A copy)."""
 
     def post(self, request):
         data = request.data or {}
-        url = data.get("url", "").strip()
-        html = data.get("html", "").strip()
+        content = (data.get("content") or "").strip()
 
-        if not url:
+        if not content:
             return Response(
-                {"error": "Укажите ссылку на продукт"},
+                {"error": "Вставьте скопированное содержимое страницы продукта."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not html:
+        if len(content) > MAX_CONTENT_SIZE:
             return Response(
-                {
-                    "error": "Не предоставлено содержимое страницы. "
-                    "Откройте ссылку в браузере и попробуйте снова."
-                },
+                {"error": "Содержимое слишком большое."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            parsed = _parse_ingredient_from_html(url, html)
+            parsed = parse_ingredient_from_text(content)
         except IngredientImportError as exc:
             return Response(
                 {"error": str(exc)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if parsed is None:
-            return Response(
-                {"error": "Не удалось импортировать ингредиент"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -286,17 +276,6 @@ class ShoppingListView(APIView):
                 data.get("people_count", 2),
             )
         return Response(result)
-
-
-def _parse_ingredient_from_html(url, html):
-    """Call import service with user-provided HTML, returning parsed data or None."""
-    try:
-        return import_ingredient_from_html(url, html)
-    except IngredientImportError:
-        raise
-    except Exception:
-        logger.exception("Unexpected error parsing ingredient from %s", url)
-        return None
 
 
 def _save_imported_ingredient(request, parsed):
