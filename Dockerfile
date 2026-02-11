@@ -18,7 +18,8 @@ FROM python:3.13-slim-bookworm AS runtime
 
 WORKDIR /app
 
-RUN apt-get update -qq && apt-get install -y --no-install-recommends gosu \
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+        gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1000 app \
