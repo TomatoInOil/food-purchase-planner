@@ -73,6 +73,7 @@ class IngredientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=False)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        logger.info("Ingredient updated: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
         return Response(serializer.data)
 
     def partial_update(self, request, *args, **kwargs):
@@ -85,6 +86,7 @@ class IngredientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        logger.info("Ingredient patched: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
