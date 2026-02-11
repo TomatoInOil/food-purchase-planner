@@ -1,4 +1,4 @@
-"""Tests for ingredient import from external URLs (5ka.ru)."""
+"""Tests for ingredient import from pasted page content (5ka.ru)."""
 
 import json
 
@@ -7,355 +7,122 @@ from django.test import Client, TestCase
 
 from planner.models import Ingredient
 from planner.services_import import (
+    MAX_CONTENT_SIZE,
     IngredientImportError,
-    _extract_plu_from_url,
-    _is_antibot_page,
-    _parse_nutrition_from_text,
-    _parse_product_page,
-    _validate_url,
-    import_ingredient_from_html,
+    parse_ingredient_from_text,
 )
 
 User = get_user_model()
 
 
-SAMPLE_HTML_WITH_JSON_LD = """
-<!doctype html>
-<html lang="ru">
-<head>
-    <title>Макароны Barilla Лазанья — Пятёрочка</title>
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org/",
-        "@type": "Product",
-        "name": "Макароны Barilla Лазанья",
-        "nutrition": {
-            "@type": "NutritionInformation",
-            "calories": "359",
-            "proteinContent": "14",
-            "fatContent": "2",
-            "carbohydrateContent": "69.7"
-        }
-    }
-    </script>
-</head>
-<body><div id="root"></div></body>
-</html>
+SAMPLE_PAGE_CONTENT = """
+Каталог
+Овощи, фрукты, орехи
+Овощи, зелень, грибы
+Капуста Китайская
+Капуста Китайская
+
+Пищевая ценность на 100 г
+1.5
+белки
+
+0.2
+жиры
+
+2.2
+углеводы
+
+13.0
+ккал
 """
 
-SAMPLE_HTML_WITH_NEXT_DATA = """
-<!doctype html>
-<html lang="ru">
-<head><title>Пятёрочка</title></head>
-<body>
-<div id="root"></div>
-<script id="__NEXT_DATA__" type="application/json">
-{
-    "props": {
-        "pageProps": {
-            "product": {
-                "name": "Молоко Простоквашино 3.2%",
-                "plu": "2085981",
-                "nutrition": {
-                    "calories": 58,
-                    "protein": 2.9,
-                    "fat": 3.2,
-                    "carbs": 4.7
-                }
-            }
-        }
-    }
-}
-</script>
-</body>
-</html>
-"""
+SAMPLE_PAGE_CONTENT_COMMA_DECIMAL = """
+Каталог
+Молочные продукты
+Молоко
+Молоко Простоквашино 3.2%
 
-SAMPLE_HTML_WITH_PROPERTIES = """
-<!doctype html>
-<html lang="ru">
-<head><title>Пятёрочка</title></head>
-<body>
-<div id="root"></div>
-<script id="__NEXT_DATA__" type="application/json">
-{
-    "props": {
-        "pageProps": {
-            "product": {
-                "name": "Сыр Российский",
-                "plu": "1234567",
-                "properties": [
-                    {"name": "Энергетическая ценность", "value": "350 ккал"},
-                    {"name": "Белки", "value": "23.2 г"},
-                    {"name": "Жиры", "value": "29.0 г"},
-                    {"name": "Углеводы", "value": "0 г"}
-                ]
-            }
-        }
-    }
-}
-</script>
-</body>
-</html>
-"""
+Пищевая ценность на 100 г
+2,9
+белки
 
-SAMPLE_HTML_WITH_TEXT_NUTRITION = """
-<!doctype html>
-<html lang="ru">
-<head><title>Куриная грудка — Пятёрочка</title></head>
-<body>
-<h1>Куриная грудка филе</h1>
-<div class="nutrition-info">
-    <p>Калорийность: 113 ккал</p>
-    <p>Белки: 23.6 г</p>
-    <p>Жиры: 1.9 г</p>
-    <p>Углеводы: 0.4 г</p>
-</div>
-</body>
-</html>
-"""
+3,2
+жиры
 
-SAMPLE_HTML_ANTIBOT = """
-<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-  <noscript><meta http-equiv="refresh" content="0; url=/exhkqyad"></noscript>
-</head>
-<body>
-  <div id="id_spinner" class="container"></div>
-  <div id="id_captcha_frame_div" style="display: none;"></div>
-  <script type="text/javascript" src="//servicepipe.ru/static/jsrsasign-all-min.js"></script>
-</body>
-</html>
-"""
+4,7
+углеводы
 
-SAMPLE_HTML_WITH_EMBEDDED_STATE = """
-<!doctype html>
-<html lang="ru">
-<head><title>Пятёрочка</title></head>
-<body>
-<div id="root"></div>
-<script>
-window.__INITIAL_STATE__ = {
-    "product": {
-        "currentProduct": {
-            "plu": "3020941",
-            "name": "Макароны Barilla Лазанья",
-            "nutrition": {
-                "calories": 359,
-                "protein": 14,
-                "fat": 2,
-                "carbs": 69.7
-            }
-        }
-    }
-};
-</script>
-</body>
-</html>
+58,0
+ккал
 """
 
 
-class ValidateUrlTests(TestCase):
-    """Test URL validation for supported 5ka.ru formats."""
+class ParseIngredientFromTextTests(TestCase):
+    """Test parse_ingredient_from_text for pasted 5ka.ru page content."""
 
-    def test_standard_url_format(self):
-        _validate_url("https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/")
+    def test_successful_parse_full_content(self):
+        result = parse_ingredient_from_text(SAMPLE_PAGE_CONTENT)
+        self.assertEqual(result.name, "Капуста Китайская")
+        self.assertEqual(result.protein, 1.5)
+        self.assertEqual(result.fat, 0.2)
+        self.assertEqual(result.carbs, 2.2)
+        self.assertEqual(result.calories, 13.0)
 
-    def test_url_without_trailing_slash(self):
-        _validate_url("https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941")
-
-    def test_url_with_www(self):
-        _validate_url(
-            "https://www.5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-        )
-
-    def test_http_url(self):
-        _validate_url("http://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/")
-
-    def test_alt_url_format(self):
-        _validate_url("https://5ka.ru/product/2085981/moloko-prostokvashino/")
-
-    def test_invalid_url_raises_error(self):
-        with self.assertRaises(IngredientImportError):
-            _validate_url("https://example.com/product/123")
-
-    def test_empty_url_raises_error(self):
-        with self.assertRaises(IngredientImportError):
-            _validate_url("")
-
-    def test_ssrf_url_with_embedded_5ka_pattern_raises_error(self):
-        with self.assertRaises(IngredientImportError):
-            _validate_url(
-                "http://169.254.169.254/meta-data?https://5ka.ru/product/x--1/"
-            )
-
-    def test_ssrf_url_with_5ka_in_path_raises_error(self):
-        with self.assertRaises(IngredientImportError):
-            _validate_url("http://evil.com/https://5ka.ru/product/makarony--3020941/")
-
-
-class ExtractPluFromUrlTests(TestCase):
-    """Test PLU extraction from various 5ka.ru URL formats."""
-
-    def test_standard_url_format(self):
-        plu = _extract_plu_from_url(
-            "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-        )
-        self.assertEqual(plu, "3020941")
-
-    def test_alt_url_format(self):
-        plu = _extract_plu_from_url(
-            "https://5ka.ru/product/2085981/moloko-prostokvashino/"
-        )
-        self.assertEqual(plu, "2085981")
-
-
-class ParseProductPageTests(TestCase):
-    """Test parsing of various HTML page formats."""
-
-    def test_parse_json_ld(self):
-        result = _parse_product_page(SAMPLE_HTML_WITH_JSON_LD, "3020941")
-        self.assertEqual(result.name, "Макароны Barilla Лазанья")
-        self.assertEqual(result.calories, 359)
-        self.assertEqual(result.protein, 14)
-        self.assertEqual(result.fat, 2)
-        self.assertEqual(result.carbs, 69.7)
-
-    def test_parse_next_data(self):
-        result = _parse_product_page(SAMPLE_HTML_WITH_NEXT_DATA, "2085981")
+    def test_parse_decimal_comma(self):
+        result = parse_ingredient_from_text(SAMPLE_PAGE_CONTENT_COMMA_DECIMAL)
         self.assertEqual(result.name, "Молоко Простоквашино 3.2%")
-        self.assertEqual(result.calories, 58)
         self.assertEqual(result.protein, 2.9)
         self.assertEqual(result.fat, 3.2)
         self.assertEqual(result.carbs, 4.7)
+        self.assertEqual(result.calories, 58.0)
 
-    def test_parse_properties_list(self):
-        result = _parse_product_page(SAMPLE_HTML_WITH_PROPERTIES, "1234567")
-        self.assertEqual(result.name, "Сыр Российский")
-        self.assertEqual(result.calories, 350)
-        self.assertEqual(result.protein, 23.2)
-        self.assertEqual(result.fat, 29.0)
-        self.assertEqual(result.carbs, 0)
-
-    def test_parse_html_content(self):
-        result = _parse_product_page(SAMPLE_HTML_WITH_TEXT_NUTRITION, "0")
-        self.assertEqual(result.name, "Куриная грудка филе")
-        self.assertEqual(result.calories, 113)
-        self.assertEqual(result.protein, 23.6)
-        self.assertEqual(result.fat, 1.9)
-        self.assertEqual(result.carbs, 0.4)
-
-    def test_antibot_page_raises_error(self):
+    def test_empty_content_raises_error(self):
         with self.assertRaises(IngredientImportError) as ctx:
-            _parse_product_page(SAMPLE_HTML_ANTIBOT, "3020941")
-        self.assertIn("антибот", str(ctx.exception))
+            parse_ingredient_from_text("")
+        self.assertIn("Вставьте", str(ctx.exception))
 
-    def test_parse_embedded_state(self):
-        result = _parse_product_page(SAMPLE_HTML_WITH_EMBEDDED_STATE, "3020941")
-        self.assertEqual(result.name, "Макароны Barilla Лазанья")
-        self.assertEqual(result.calories, 359)
-        self.assertEqual(result.protein, 14)
-        self.assertEqual(result.fat, 2)
-        self.assertEqual(result.carbs, 69.7)
-
-    def test_empty_html_raises_error(self):
+    def test_whitespace_only_raises_error(self):
         with self.assertRaises(IngredientImportError):
-            _parse_product_page("<html><body></body></html>", "123")
+            parse_ingredient_from_text("   \n\t  ")
+
+    def test_missing_name_raises_error(self):
+        content = """
+Пищевая ценность на 100 г
+1
+белки
+0
+жиры
+0
+углеводы
+10
+ккал
+"""
+        with self.assertRaises(IngredientImportError) as ctx:
+            parse_ingredient_from_text(content)
+        self.assertIn("название", str(ctx.exception))
+
+    def test_missing_nutrition_raises_error(self):
+        content = """
+Каталог
+Продукты
+Тестовый продукт
+
+Нет блока КБЖУ здесь.
+"""
+        with self.assertRaises(IngredientImportError) as ctx:
+            parse_ingredient_from_text(content)
+        self.assertIn("пищевую ценность", str(ctx.exception).lower())
+
+    def test_content_too_large_raises_error(self):
+        content = "Каталог\nX\n\nПищевая ценность на 100 г\n1\nбелки\n0\nжиры\n0\nуглеводы\n0\nккал"
+        large = content + "x" * (MAX_CONTENT_SIZE - len(content) + 1)
+        with self.assertRaises(IngredientImportError) as ctx:
+            parse_ingredient_from_text(large)
+        self.assertIn("больш", str(ctx.exception))
 
 
-class ParseNutritionFromTextTests(TestCase):
-    """Test parsing КБЖУ from free-form text."""
-
-    def test_standard_format(self):
-        result = _parse_nutrition_from_text(
-            "Test",
-            "Калорийность: 250 ккал, Белки: 10 г, Жиры: 5 г, Углеводы: 30 г",
-        )
-        self.assertIsNotNone(result)
-        self.assertEqual(result.calories, 250)
-        self.assertEqual(result.protein, 10)
-        self.assertEqual(result.fat, 5)
-        self.assertEqual(result.carbs, 30)
-
-    def test_decimal_values_with_comma(self):
-        result = _parse_nutrition_from_text(
-            "Test",
-            "Калорийность: 113,5 ккал Белки: 23,6 Жиры: 1,9 Углеводы: 0,4",
-        )
-        self.assertIsNotNone(result)
-        self.assertEqual(result.calories, 113.5)
-        self.assertEqual(result.protein, 23.6)
-
-    def test_no_nutrition_data_returns_none(self):
-        result = _parse_nutrition_from_text("Test", "No nutrition here")
-        self.assertIsNone(result)
-
-
-class IsAntibotPageTests(TestCase):
-    """Test anti-bot detection."""
-
-    def test_servicepipe_detected(self):
-        self.assertTrue(_is_antibot_page(SAMPLE_HTML_ANTIBOT))
-
-    def test_normal_page_not_detected(self):
-        self.assertFalse(_is_antibot_page(SAMPLE_HTML_WITH_JSON_LD))
-
-
-class ImportIngredientFromHtmlTests(TestCase):
-    """Test the full import flow with pre-fetched HTML."""
-
-    def test_successful_import_json_ld(self):
-        result = import_ingredient_from_html(
-            "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-            SAMPLE_HTML_WITH_JSON_LD,
-        )
-        self.assertEqual(result.name, "Макароны Barilla Лазанья")
-        self.assertEqual(result.calories, 359)
-        self.assertEqual(result.protein, 14)
-        self.assertEqual(result.fat, 2)
-        self.assertEqual(result.carbs, 69.7)
-
-    def test_successful_import_next_data(self):
-        result = import_ingredient_from_html(
-            "https://5ka.ru/product/moloko-prostokvashino--2085981/",
-            SAMPLE_HTML_WITH_NEXT_DATA,
-        )
-        self.assertEqual(result.name, "Молоко Простоквашино 3.2%")
-        self.assertEqual(result.calories, 58)
-
-    def test_antibot_raises_import_error(self):
-        with self.assertRaises(IngredientImportError):
-            import_ingredient_from_html(
-                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                SAMPLE_HTML_ANTIBOT,
-            )
-
-    def test_invalid_url_raises_import_error(self):
-        with self.assertRaises(IngredientImportError):
-            import_ingredient_from_html(
-                "https://example.com/product/123",
-                SAMPLE_HTML_WITH_JSON_LD,
-            )
-
-    def test_empty_html_raises_import_error(self):
-        with self.assertRaises(IngredientImportError):
-            import_ingredient_from_html(
-                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                "",
-            )
-
-    def test_whitespace_html_raises_import_error(self):
-        with self.assertRaises(IngredientImportError):
-            import_ingredient_from_html(
-                "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                "   \n\t  ",
-            )
-
-
-class IngredientImportApiTests(TestCase):
-    """Test the ingredient import API endpoint."""
+class IngredientImportPageContentApiTests(TestCase):
+    """Test POST /api/ingredients/import-page-content/."""
 
     def setUp(self):
         self.client = Client()
@@ -366,117 +133,65 @@ class IngredientImportApiTests(TestCase):
 
     def test_import_creates_ingredient(self):
         response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                    "html": SAMPLE_HTML_WITH_JSON_LD,
-                }
-            ),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({"content": SAMPLE_PAGE_CONTENT}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 201)
         data = response.json()
-        self.assertEqual(data["name"], "Макароны Barilla Лазанья")
-        self.assertEqual(data["calories"], 359)
-        self.assertEqual(data["protein"], 14)
-        self.assertEqual(data["fat"], 2)
-        self.assertEqual(data["carbs"], 69.7)
+        self.assertEqual(data["name"], "Капуста Китайская")
+        self.assertEqual(data["calories"], 13.0)
+        self.assertEqual(data["protein"], 1.5)
+        self.assertEqual(data["fat"], 0.2)
+        self.assertEqual(data["carbs"], 2.2)
         self.assertTrue(data["is_owner"])
         self.assertTrue(
-            Ingredient.objects.filter(
-                user=self.user, name="Макароны Barilla Лазанья"
-            ).exists()
+            Ingredient.objects.filter(user=self.user, name="Капуста Китайская").exists()
         )
 
-    def test_import_empty_url_returns_400(self):
+    def test_empty_content_returns_400(self):
         response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps({"url": "", "html": SAMPLE_HTML_WITH_JSON_LD}),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({"content": ""}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
-    def test_import_missing_url_returns_400(self):
+    def test_missing_content_returns_400(self):
         response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps({"html": SAMPLE_HTML_WITH_JSON_LD}),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
-    def test_import_missing_html_returns_400(self):
+    def test_too_large_content_returns_400(self):
+        content = "Каталог\nX\n\nПищевая ценность на 100 г\n1\nбелки\n0\nжиры\n0\nуглеводы\n0\nккал"
+        large = content + "x" * (MAX_CONTENT_SIZE - len(content) + 1)
         response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/"
-                }
-            ),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({"content": large}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
-    def test_import_invalid_url_returns_400(self):
+    def test_invalid_format_returns_400(self):
         response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://example.com/product/123",
-                    "html": SAMPLE_HTML_WITH_JSON_LD,
-                }
-            ),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({"content": "Random text without Каталог or nutrition"}),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
 
-    def test_import_antibot_returns_400(self):
-        response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                    "html": SAMPLE_HTML_ANTIBOT,
-                }
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("error", response.json())
-        self.assertIn("антибот", response.json()["error"])
-
-    def test_import_duplicate_ingredient_returns_400(self):
-        Ingredient.objects.create(
-            user=self.user,
-            name="Макароны Barilla Лазанья",
-            calories=0,
-        )
-        response = self.client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                    "html": SAMPLE_HTML_WITH_JSON_LD,
-                }
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_import_requires_authentication(self):
+    def test_requires_authentication(self):
         anon_client = Client()
         response = anon_client.post(
-            "/api/ingredients/import-url/",
-            data=json.dumps(
-                {
-                    "url": "https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/",
-                    "html": SAMPLE_HTML_WITH_JSON_LD,
-                }
-            ),
+            "/api/ingredients/import-page-content/",
+            data=json.dumps({"content": SAMPLE_PAGE_CONTENT}),
             content_type="application/json",
         )
         self.assertIn(response.status_code, [401, 403])

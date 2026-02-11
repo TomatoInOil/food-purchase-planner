@@ -4,15 +4,13 @@
 
         <div class="ingredient-form-section">
             <h3>Импорт из Пятёрочки</h3>
-            <form id="importIngredientForm" onsubmit="importIngredientFromUrl(event)">
-                <div class="import-row">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Ссылка на продукт 5ka.ru</label>
-                        <input type="url" name="importUrl" required
-                               placeholder="https://5ka.ru/product/makarony-barilla-lazanya-500g--3020941/">
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-import" id="importBtn">📥 Импорт</button>
+            <form id="importIngredientForm" onsubmit="importIngredientFromPageContent(event)">
+                <div class="form-group">
+                    <label>Откройте страницу продукта на 5ka.ru, выделите всё (Ctrl+A), скопируйте (Ctrl+C) и вставьте сюда (Ctrl+V)</label>
+                    <textarea name="pageContent" rows="6" required
+                              placeholder="Вставьте сюда скопированный текст страницы…"></textarea>
                 </div>
+                <button type="submit" class="btn btn-primary btn-import" id="importBtn">📥 Импорт</button>
             </form>
         </div>
 

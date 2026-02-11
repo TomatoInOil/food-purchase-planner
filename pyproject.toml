@@ -1,11 +1,10 @@
 [project]
 name = "food-purchase-planner"
 version = "0.1.0"
-description = "Add your description here"
+description = "Web app for planning food purchases: recipes, ingredients, and shopping lists."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
     "django>=6.0.2",
     "djangorestframework>=3.16.1",
     "gunicorn>=25.0.1",
