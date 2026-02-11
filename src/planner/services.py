@@ -1,8 +1,11 @@
 """Domain services for menu and shopping list calculations."""
 
+import logging
 from datetime import timedelta
 
 from planner.models import Menu, MenuSlot, RecipeIngredient
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_first_menu(user):
@@ -10,6 +13,7 @@ def get_or_create_first_menu(user):
     menu = Menu.objects.filter(user=user).first()
     if not menu:
         menu = Menu.objects.create(user=user, name="Меню на неделю")
+        logger.info("Created default menu for user_id=%s", user.pk)
     return menu
 
 
@@ -47,7 +51,12 @@ def calculate_shopping_list(menu, start_date, end_date, people_count=2):
         for s in MenuSlot.objects.filter(menu=menu)
     }
     aggregated = _aggregate_ingredients(slots_by_day_meal, start_date, end_date)
-    return _build_shopping_result(aggregated, people_count)
+    result = _build_shopping_result(aggregated, people_count)
+    logger.info(
+        "Shopping list for menu_id=%s (%s — %s, people=%d): %d items",
+        menu.pk, start_date, end_date, people_count, len(result),
+    )
+    return result
 
 
 def calculate_shopping_list_for_user(user, start_date, end_date, people_count=2):

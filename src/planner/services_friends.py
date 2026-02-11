@@ -1,8 +1,12 @@
 """Friend-related domain services."""
 
+import logging
+
 from django.db import models
 
 from planner.models import FriendRequest
+
+logger = logging.getLogger(__name__)
 
 
 def get_friend_user_or_404(request_user, friend_id):
@@ -16,6 +20,10 @@ def get_friend_user_or_404(request_user, friend_id):
     )
     friend_request = qs.select_related("from_user", "to_user").first()
     if not friend_request:
+        logger.warning(
+            "Friend lookup failed: user_id=%s is not friends with user_id=%s",
+            request_user.pk, friend_id,
+        )
         from rest_framework.exceptions import ValidationError
 
         raise ValidationError("Пользователь не является вашим другом")
