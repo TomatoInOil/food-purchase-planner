@@ -92,7 +92,15 @@ class IngredientSerializerTests(TestCase):
             user=self.user, name="Salt", calories=0, protein=0, fat=0, carbs=0
         )
         serializer = IngredientSerializer(ing, context=self._context())
-        expected_keys = {"id", "name", "calories", "protein", "fat", "carbs", "is_owner"}
+        expected_keys = {
+            "id",
+            "name",
+            "calories",
+            "protein",
+            "fat",
+            "carbs",
+            "is_owner",
+        }
         self.assertEqual(set(serializer.data.keys()), expected_keys)
 
 
@@ -128,9 +136,18 @@ class RecipeSerializerTests(TestCase):
         serializer = RecipeSerializer(self.recipe, context=self._context())
         data = serializer.data
         expected_keys = {
-            "id", "name", "description", "instructions",
-            "total_calories", "total_protein", "total_fat", "total_carbs",
-            "is_owner", "can_edit", "ingredients", "author_username",
+            "id",
+            "name",
+            "description",
+            "instructions",
+            "total_calories",
+            "total_protein",
+            "total_fat",
+            "total_carbs",
+            "is_owner",
+            "can_edit",
+            "ingredients",
+            "author_username",
         }
         self.assertEqual(set(data.keys()), expected_keys)
 
@@ -281,9 +298,7 @@ class RecipeCreateUpdateSerializerTests(TestCase):
         RecipeIngredient.objects.create(
             recipe=recipe, ingredient=self.ing, weight_grams=100
         )
-        ing2 = Ingredient.objects.create(
-            user=self.user, name="Cheese", calories=300
-        )
+        ing2 = Ingredient.objects.create(user=self.user, name="Cheese", calories=300)
         data = {
             "name": "New",
             "description": "d",
@@ -331,7 +346,7 @@ class MenuSlotsSerializerTests(TestCase):
         self.assertEqual(len(data), 28)
         for day in range(7):
             for meal in range(4):
-                self.assertIsNone(data[f"{day}-{meal}"])
+                self.assertEqual(data[f"{day}-{meal}"], [])
 
     def test_filled_slot_returns_recipe_id(self):
         recipe = Recipe.objects.create(
@@ -341,7 +356,7 @@ class MenuSlotsSerializerTests(TestCase):
             menu=self.menu, day_of_week=3, meal_type=2, recipe=recipe
         )
         serializer = MenuSlotsSerializer(instance=self.menu)
-        self.assertEqual(serializer.data["3-2"], recipe.id)
+        self.assertEqual(serializer.data["3-2"], [recipe.id])
 
 
 class ShoppingListRequestSerializerTests(TestCase):

@@ -501,7 +501,7 @@ class MenuApiTests(ApiTestBase):
         for day in range(7):
             for meal in range(4):
                 self.assertIn(f"{day}-{meal}", data)
-                self.assertIsNone(data[f"{day}-{meal}"])
+                self.assertEqual(data[f"{day}-{meal}"], [])
 
     def test_menu_put_and_get(self):
         recipe = Recipe.objects.create(
@@ -518,9 +518,9 @@ class MenuApiTests(ApiTestBase):
         response2 = self.client.get("/api/menu/")
         self.assertEqual(response2.status_code, 200)
         data = response2.json()
-        self.assertEqual(data["0-0"], recipe.id)
-        self.assertEqual(data["1-1"], recipe.id)
-        self.assertIsNone(data["0-1"])
+        self.assertEqual(data["0-0"], [recipe.id])
+        self.assertEqual(data["1-1"], [recipe.id])
+        self.assertEqual(data["0-1"], [])
 
 
 class MultiMenuApiTests(ApiTestBase):
@@ -558,7 +558,7 @@ class MultiMenuApiTests(ApiTestBase):
         data = response.json()
         for day in range(7):
             for meal in range(4):
-                self.assertIsNone(data[f"{day}-{meal}"])
+                self.assertEqual(data[f"{day}-{meal}"], [])
 
     def test_menu_detail_put_and_get(self):
         menu = Menu.objects.create(user=self.user, name="Test")
@@ -574,9 +574,9 @@ class MultiMenuApiTests(ApiTestBase):
         self.assertEqual(response.status_code, 200)
         response2 = self.client.get(f"/api/menus/{menu.id}/")
         data = response2.json()
-        self.assertEqual(data["0-0"], recipe.id)
-        self.assertEqual(data["2-1"], recipe.id)
-        self.assertIsNone(data["1-0"])
+        self.assertEqual(data["0-0"], [recipe.id])
+        self.assertEqual(data["2-1"], [recipe.id])
+        self.assertEqual(data["1-0"], [])
 
     def test_menu_detail_patch_rename(self):
         menu = Menu.objects.create(user=self.user, name="Old Name")
@@ -617,8 +617,8 @@ class MultiMenuApiTests(ApiTestBase):
         )
         data1 = self.client.get(f"/api/menus/{menu1.id}/").json()
         data2 = self.client.get(f"/api/menus/{menu2.id}/").json()
-        self.assertEqual(data1["0-0"], recipe.id)
-        self.assertIsNone(data2["0-0"])
+        self.assertEqual(data1["0-0"], [recipe.id])
+        self.assertEqual(data2["0-0"], [])
 
 
 class ShoppingListApiTests(ApiTestBase):
@@ -871,7 +871,7 @@ class FriendsApiTests(ApiTestBase):
         data = response.json()
         self.assertIn("menu", data)
         self.assertIn("recipes", data)
-        self.assertEqual(data["menu"]["0-0"], recipe.id)
+        self.assertEqual(data["menu"]["0-0"], [recipe.id])
         self.assertEqual(len(data["recipes"]), 1)
         self.assertEqual(data["recipes"][0]["id"], recipe.id)
         self.assertEqual(data["recipes"][0]["name"], "Friend Soup")
@@ -1029,7 +1029,7 @@ class FriendMenuEditTests(ApiTestBase):
         response = self.client.get(f"/api/friends/{self.friend.id}/menus/{menu.id}/")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["0-0"], recipe.id)
+        self.assertEqual(data["0-0"], [recipe.id])
 
     def test_update_friend_menu_slots_with_edit_permission(self):
         self._make_friends_with_edit()

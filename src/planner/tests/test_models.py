@@ -243,14 +243,21 @@ class MenuSlotModelTests(TestCase):
         )
         self.assertEqual(str(slot), "Monday lunch")
 
-    def test_unique_menu_day_meal_constraint(self):
+    def test_multiple_recipes_per_slot_allowed(self):
+        recipe2 = Recipe.objects.create(
+            user=self.user, name="Salad", description="", instructions=""
+        )
         MenuSlot.objects.create(
             menu=self.menu, day_of_week=0, meal_type=0, recipe=self.recipe
         )
-        with self.assertRaises(IntegrityError):
-            MenuSlot.objects.create(
-                menu=self.menu, day_of_week=0, meal_type=0, recipe=self.recipe
-            )
+        slot2 = MenuSlot.objects.create(
+            menu=self.menu, day_of_week=0, meal_type=0, recipe=recipe2
+        )
+        self.assertEqual(
+            MenuSlot.objects.filter(menu=self.menu, day_of_week=0, meal_type=0).count(),
+            2,
+        )
+        self.assertEqual(slot2.recipe, recipe2)
 
     def test_slot_with_null_recipe_allowed(self):
         slot = MenuSlot.objects.create(

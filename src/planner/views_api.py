@@ -57,7 +57,12 @@ class IngredientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ingredient = serializer.save()
-        logger.info("Ingredient created: id=%s name=%r by user_id=%s", ingredient.pk, ingredient.name, request.user.pk)
+        logger.info(
+            "Ingredient created: id=%s name=%r by user_id=%s",
+            ingredient.pk,
+            ingredient.name,
+            request.user.pk,
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, *args, **kwargs):
@@ -73,7 +78,12 @@ class IngredientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=False)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        logger.info("Ingredient updated: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
+        logger.info(
+            "Ingredient updated: id=%s name=%r by user_id=%s",
+            instance.pk,
+            instance.name,
+            request.user.pk,
+        )
         return Response(serializer.data)
 
     def partial_update(self, request, *args, **kwargs):
@@ -86,7 +96,12 @@ class IngredientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        logger.info("Ingredient patched: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
+        logger.info(
+            "Ingredient patched: id=%s name=%r by user_id=%s",
+            instance.pk,
+            instance.name,
+            request.user.pk,
+        )
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
@@ -101,7 +116,12 @@ class IngredientViewSet(viewsets.ModelViewSet):
                 {"error": "Ingredient is used in recipes"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        logger.info("Ingredient deleted: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
+        logger.info(
+            "Ingredient deleted: id=%s name=%r by user_id=%s",
+            instance.pk,
+            instance.name,
+            request.user.pk,
+        )
         instance.delete()
         return Response({"status": "ok"})
 
@@ -128,13 +148,19 @@ class IngredientImportFromContentView(APIView):
         try:
             parsed = parse_ingredient_from_text(content)
         except IngredientImportError as exc:
-            logger.warning("Ingredient import failed for user_id=%s: %s", request.user.pk, exc)
+            logger.warning(
+                "Ingredient import failed for user_id=%s: %s", request.user.pk, exc
+            )
             return Response(
                 {"error": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        logger.info("Ingredient imported from content: name=%r by user_id=%s", parsed.name, request.user.pk)
+        logger.info(
+            "Ingredient imported from content: name=%r by user_id=%s",
+            parsed.name,
+            request.user.pk,
+        )
         return _save_imported_ingredient(request, parsed)
 
 
@@ -169,7 +195,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         recipe = serializer.save()
-        logger.info("Recipe created: id=%s name=%r by user_id=%s", recipe.pk, recipe.name, request.user.pk)
+        logger.info(
+            "Recipe created: id=%s name=%r by user_id=%s",
+            recipe.pk,
+            recipe.name,
+            request.user.pk,
+        )
         out_serializer = RecipeSerializer(recipe, context=self.get_serializer_context())
         return Response(out_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -188,7 +219,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        logger.info("Recipe deleted: id=%s name=%r by user_id=%s", instance.pk, instance.name, request.user.pk)
+        logger.info(
+            "Recipe deleted: id=%s name=%r by user_id=%s",
+            instance.pk,
+            instance.name,
+            request.user.pk,
+        )
         instance.delete()
         return Response({"status": "ok"})
 
@@ -204,7 +240,12 @@ class MenuListCreateView(APIView):
     def post(self, request):
         name = (request.data or {}).get("name", "Меню на неделю")
         menu = Menu.objects.create(user=request.user, name=name)
-        logger.info("Menu created: id=%s name=%r by user_id=%s", menu.pk, menu.name, request.user.pk)
+        logger.info(
+            "Menu created: id=%s name=%r by user_id=%s",
+            menu.pk,
+            menu.name,
+            request.user.pk,
+        )
         serializer = MenuItemSerializer(menu)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -317,12 +358,13 @@ def _save_imported_ingredient(request, parsed):
 
 
 def _replace_menu_slots(menu, body):
-    """Delete existing slots and recreate from request body dict."""
+    """Delete existing slots and recreate from request body dict.
+
+    Values can be a single recipe_id (legacy) or a list of recipe_ids.
+    """
     MenuSlot.objects.filter(menu=menu).delete()
     valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
-    for key, recipe_id in body.items():
-        if recipe_id is None:
-            continue
+    for key, value in body.items():
         try:
             day_str, meal_str = key.split("-")
             day_of_week = int(day_str)
@@ -331,11 +373,16 @@ def _replace_menu_slots(menu, body):
             continue
         if day_of_week not in range(7) or meal_type not in range(4):
             continue
-        if recipe_id not in valid_recipe_ids:
-            continue
-        MenuSlot.objects.create(
-            menu=menu,
-            day_of_week=day_of_week,
-            meal_type=meal_type,
-            recipe_id=recipe_id,
-        )
+        # Support both list and single value (legacy)
+        recipe_ids = value if isinstance(value, list) else [value]
+        for recipe_id in recipe_ids:
+            if recipe_id is None:
+                continue
+            if recipe_id not in valid_recipe_ids:
+                continue
+            MenuSlot.objects.create(
+                menu=menu,
+                day_of_week=day_of_week,
+                meal_type=meal_type,
+                recipe_id=recipe_id,
+            )
