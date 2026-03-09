@@ -20,15 +20,19 @@ def get_or_create_first_menu(user):
 def get_menu_slots(menu):
     """
     Build menu dict from MenuSlot for the given Menu.
-    Returns {"day-meal": recipe_id} with None for empty slots.
+    Returns {"day-meal": [recipe_id, ...]} with [] for empty slots.
     """
     slots = MenuSlot.objects.filter(menu=menu)
-    data = {f"{s.day_of_week}-{s.meal_type}": s.recipe_id for s in slots}
+    data: dict[str, list[int]] = {}
+    for s in slots:
+        key = f"{s.day_of_week}-{s.meal_type}"
+        if s.recipe_id is not None:
+            data.setdefault(key, []).append(s.recipe_id)
     for day in range(7):
         for meal in range(4):
             key = f"{day}-{meal}"
             if key not in data:
-                data[key] = None
+                data[key] = []
     return data
 
 
@@ -46,15 +50,21 @@ def calculate_shopping_list(menu, start_date, end_date, people_count=2):
     Compute aggregated shopping list for a specific menu over the date range.
     Returns list of {"name": str, "weight_grams": int} sorted by name.
     """
-    slots_by_day_meal = {
-        (s.day_of_week, s.meal_type): s.recipe_id
-        for s in MenuSlot.objects.filter(menu=menu)
-    }
+    slots_by_day_meal: dict[tuple[int, int], list[int]] = {}
+    for s in MenuSlot.objects.filter(menu=menu):
+        if s.recipe_id is not None:
+            slots_by_day_meal.setdefault((s.day_of_week, s.meal_type), []).append(
+                s.recipe_id
+            )
     aggregated = _aggregate_ingredients(slots_by_day_meal, start_date, end_date)
     result = _build_shopping_result(aggregated, people_count)
     logger.info(
         "Shopping list for menu_id=%s (%s — %s, people=%d): %d items",
-        menu.pk, start_date, end_date, people_count, len(result),
+        menu.pk,
+        start_date,
+        end_date,
+        people_count,
+        len(result),
     )
     return result
 
@@ -75,19 +85,18 @@ def _aggregate_ingredients(slots_by_day_meal, start_date, end_date):
     while current <= end_date:
         day_of_week = current.weekday()
         for meal_type in range(4):
-            recipe_id = slots_by_day_meal.get((day_of_week, meal_type))
-            if not recipe_id:
-                continue
-            for ri in RecipeIngredient.objects.filter(
-                recipe_id=recipe_id
-            ).select_related("ingredient"):
-                ing_id = ri.ingredient_id
-                if ing_id not in aggregated:
-                    aggregated[ing_id] = {
-                        "name": ri.ingredient.name,
-                        "weight_grams": 0,
-                    }
-                aggregated[ing_id]["weight_grams"] += ri.weight_grams
+            recipe_ids = slots_by_day_meal.get((day_of_week, meal_type), [])
+            for recipe_id in recipe_ids:
+                for ri in RecipeIngredient.objects.filter(
+                    recipe_id=recipe_id
+                ).select_related("ingredient"):
+                    ing_id = ri.ingredient_id
+                    if ing_id not in aggregated:
+                        aggregated[ing_id] = {
+                            "name": ri.ingredient.name,
+                            "weight_grams": 0,
+                        }
+                    aggregated[ing_id]["weight_grams"] += ri.weight_grams
         current += timedelta(days=1)
     return aggregated
 

@@ -75,7 +75,7 @@ class GetMenuSlotsTests(TestCase):
         self.assertEqual(len(data), 28)
         for day in range(7):
             for meal in range(4):
-                self.assertIsNone(data[f"{day}-{meal}"])
+                self.assertEqual(data[f"{day}-{meal}"], [])
 
     def test_filled_slots_returned_correctly(self):
         MenuSlot.objects.create(
@@ -85,16 +85,14 @@ class GetMenuSlotsTests(TestCase):
             menu=self.menu, day_of_week=6, meal_type=3, recipe=self.recipe
         )
         data = get_menu_slots(self.menu)
-        self.assertEqual(data["0-0"], self.recipe.id)
-        self.assertEqual(data["6-3"], self.recipe.id)
-        self.assertIsNone(data["0-1"])
+        self.assertEqual(data["0-0"], [self.recipe.id])
+        self.assertEqual(data["6-3"], [self.recipe.id])
+        self.assertEqual(data["0-1"], [])
 
     def test_slot_with_null_recipe(self):
-        MenuSlot.objects.create(
-            menu=self.menu, day_of_week=1, meal_type=0, recipe=None
-        )
+        MenuSlot.objects.create(menu=self.menu, day_of_week=1, meal_type=0, recipe=None)
         data = get_menu_slots(self.menu)
-        self.assertIsNone(data["1-0"])
+        self.assertEqual(data["1-0"], [])
 
 
 class GetMenuForUserTests(TestCase):
@@ -137,9 +135,7 @@ class CalculateShoppingListTests(TestCase):
 
     def test_empty_menu_returns_empty_list(self):
         today = date.today()
-        result = calculate_shopping_list(
-            self.menu, today, today + timedelta(days=6)
-        )
+        result = calculate_shopping_list(self.menu, today, today + timedelta(days=6))
         self.assertEqual(result, [])
 
     def test_single_day_single_meal(self):
@@ -183,9 +179,7 @@ class CalculateShoppingListTests(TestCase):
             meal_type=0,
             recipe=self.recipe,
         )
-        result = calculate_shopping_list(
-            self.menu, today, tomorrow, people_count=1
-        )
+        result = calculate_shopping_list(self.menu, today, tomorrow, people_count=1)
         tomato = next(i for i in result if i["name"] == "Tomato")
         self.assertEqual(tomato["weight_grams"], 400)
 

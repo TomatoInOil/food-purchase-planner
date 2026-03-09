@@ -72,7 +72,8 @@ class SendFriendRequestView(APIView):
         )
         logger.info(
             "Friend request sent: from_user_id=%s to_user_id=%s",
-            request.user.pk, to_user.pk,
+            request.user.pk,
+            to_user.pk,
         )
         serializer = FriendRequestSerializer(friend_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -126,7 +127,8 @@ class FriendRemoveView(APIView):
         friend_request.save(update_fields=["status"])
         logger.info(
             "Friend removed: user_id=%s removed friend user_id=%s",
-            request.user.pk, user_id,
+            request.user.pk,
+            user_id,
         )
         return Response({"success": True})
 
@@ -158,7 +160,8 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         friend_request.save(update_fields=["status"])
         logger.info(
             "Friend request accepted: request_id=%s by user_id=%s",
-            friend_request.pk, request.user.pk,
+            friend_request.pk,
+            request.user.pk,
         )
 
         reverse_qs = FriendRequest.objects.filter(
@@ -184,7 +187,8 @@ class FriendRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         friend_request.save(update_fields=["status"])
         logger.info(
             "Friend request declined: request_id=%s by user_id=%s",
-            friend_request.pk, request.user.pk,
+            friend_request.pk,
+            request.user.pk,
         )
 
         serializer = self.get_serializer(friend_request)
@@ -200,7 +204,9 @@ class FriendSendEditRecipesRequestView(APIView):
             raise ValidationError("Пользователь не является вашим другом")
 
         if friend_request.can_edit_recipes_status != FriendRequest.EDIT_RECIPES_NONE:
-            raise ValidationError("Запрос на совместное редактирование уже отправлен или принят")
+            raise ValidationError(
+                "Запрос на совместное редактирование уже отправлен или принят"
+            )
 
         friend_request.can_edit_recipes_status = FriendRequest.EDIT_RECIPES_PENDING
         friend_request.can_edit_recipes_requested_by = request.user
@@ -209,12 +215,15 @@ class FriendSendEditRecipesRequestView(APIView):
         )
         logger.info(
             "Edit-recipes request sent: user_id=%s to friend user_id=%s",
-            request.user.pk, user_id,
+            request.user.pk,
+            user_id,
         )
-        return Response({
-            "success": True,
-            "can_edit_recipes_status": friend_request.can_edit_recipes_status,
-        })
+        return Response(
+            {
+                "success": True,
+                "can_edit_recipes_status": friend_request.can_edit_recipes_status,
+            }
+        )
 
 
 class FriendRevokeEditRecipesView(APIView):
@@ -235,12 +244,15 @@ class FriendRevokeEditRecipesView(APIView):
         )
         logger.info(
             "Edit-recipes revoked: user_id=%s for friend user_id=%s",
-            request.user.pk, user_id,
+            request.user.pk,
+            user_id,
         )
-        return Response({
-            "success": True,
-            "can_edit_recipes_status": friend_request.can_edit_recipes_status,
-        })
+        return Response(
+            {
+                "success": True,
+                "can_edit_recipes_status": friend_request.can_edit_recipes_status,
+            }
+        )
 
 
 class EditRecipesRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -268,15 +280,17 @@ class EditRecipesRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
                 other = fr.to_user
             else:
                 other = fr.from_user
-            items.append({
-                "friend_request_id": fr.id,
-                "from_user_id": other.id,
-                "from_username": other.username,
-                "to_user_id": request.user.id,
-                "to_username": request.user.username,
-                "requested_by_id": fr.can_edit_recipes_requested_by_id,
-                "requested_by_username": fr.can_edit_recipes_requested_by.username,
-            })
+            items.append(
+                {
+                    "friend_request_id": fr.id,
+                    "from_user_id": other.id,
+                    "from_username": other.username,
+                    "to_user_id": request.user.id,
+                    "to_username": request.user.username,
+                    "requested_by_id": fr.can_edit_recipes_requested_by_id,
+                    "requested_by_username": fr.can_edit_recipes_requested_by.username,
+                }
+            )
         serializer = EditRecipesRequestSerializer(items, many=True)
         return Response(serializer.data)
 
@@ -328,7 +342,7 @@ class FriendMenuView(APIView):
         if not friend_menu:
             return Response({"menu": {}, "recipes": []})
         menu_data = get_menu_slots(friend_menu)
-        recipe_ids = {v for v in menu_data.values() if v is not None}
+        recipe_ids = {rid for ids in menu_data.values() for rid in ids}
         recipes_qs = Recipe.objects.filter(pk__in=recipe_ids)
         recipes_list = [
             {"id": r.id, "name": r.name, "total_calories": r.total_calories or 0}
@@ -414,12 +428,13 @@ class FriendMenuDetailView(APIView):
 
 
 def _replace_friend_menu_slots(menu, body):
-    """Delete existing slots and recreate from request body dict."""
+    """Delete existing slots and recreate from request body dict.
+
+    Values can be a single recipe_id (legacy) or a list of recipe_ids.
+    """
     MenuSlot.objects.filter(menu=menu).delete()
     valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
-    for key, recipe_id in body.items():
-        if recipe_id is None:
-            continue
+    for key, value in body.items():
         try:
             day_str, meal_str = key.split("-")
             day_of_week = int(day_str)
@@ -428,14 +443,18 @@ def _replace_friend_menu_slots(menu, body):
             continue
         if day_of_week not in range(7) or meal_type not in range(4):
             continue
-        if recipe_id not in valid_recipe_ids:
-            continue
-        MenuSlot.objects.create(
-            menu=menu,
-            day_of_week=day_of_week,
-            meal_type=meal_type,
-            recipe_id=recipe_id,
-        )
+        recipe_ids = value if isinstance(value, list) else [value]
+        for recipe_id in recipe_ids:
+            if recipe_id is None:
+                continue
+            if recipe_id not in valid_recipe_ids:
+                continue
+            MenuSlot.objects.create(
+                menu=menu,
+                day_of_week=day_of_week,
+                meal_type=meal_type,
+                recipe_id=recipe_id,
+            )
 
 
 class FriendShoppingListView(APIView):

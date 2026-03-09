@@ -490,6 +490,59 @@ textarea {
     margin-bottom: 5px;
 }
 
+.meal-slot-recipes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.meal-slot-recipe {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.meal-slot-recipe select {
+    flex: 1;
+    font-size: 0.9em;
+    padding: 8px;
+}
+
+.btn-remove-recipe {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 0.8em;
+    line-height: 24px;
+    text-align: center;
+    color: var(--muted);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.btn-remove-recipe:hover {
+    color: var(--danger, #e74c3c);
+    background: rgba(231, 76, 60, 0.1);
+}
+
+.btn-add-recipe {
+    margin-top: 4px;
+    padding: 4px 8px;
+    font-size: 0.8em;
+    color: var(--primary);
+    background: none;
+    border: 1px dashed var(--primary);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-add-recipe:hover {
+    background: rgba(74, 144, 226, 0.1);
+}
+
 .meal-slot select {
     font-size: 0.9em;
     padding: 8px;

@@ -166,12 +166,6 @@ class MenuSlot(models.Model):
 
     class Meta:
         ordering = ["menu", "day_of_week", "meal_type"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["menu", "day_of_week", "meal_type"],
-                name="unique_menu_day_meal",
-            )
-        ]
 
     def __str__(self):
         return f"{self.get_day_of_week_display()} {self.get_meal_type_display()}"

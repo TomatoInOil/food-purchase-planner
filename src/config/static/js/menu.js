@@ -45,7 +45,7 @@ function _initEmptyWeekMenu() {
     weekMenu = {};
     for (var d = 0; d < 7; d++) {
         for (var m = 0; m < 4; m++) {
-            weekMenu[d + '-' + m] = null;
+            weekMenu[d + '-' + m] = [];
         }
     }
 }
@@ -404,15 +404,16 @@ function getDayNutritionTotals(dayIndex) {
     var source = getRecipeSource();
     var calories = 0, protein = 0, fat = 0, carbs = 0;
     for (var m = 0; m < 4; m++) {
-        var recipeId = weekMenu[dayIndex + '-' + m];
-        if (!recipeId) continue;
-        var r = source.find(function (x) { return x.id === recipeId; });
-        if (r) {
-            calories += r.total_calories || 0;
-            protein += r.total_protein || 0;
-            fat += r.total_fat || 0;
-            carbs += r.total_carbs || 0;
-        }
+        var recipeIds = weekMenu[dayIndex + '-' + m] || [];
+        recipeIds.forEach(function (recipeId) {
+            var r = source.find(function (x) { return x.id === recipeId; });
+            if (r) {
+                calories += r.total_calories || 0;
+                protein += r.total_protein || 0;
+                fat += r.total_fat || 0;
+                carbs += r.total_carbs || 0;
+            }
+        });
     }
     return { calories: calories, protein: protein, fat: fat, carbs: carbs };
 }
@@ -422,6 +423,21 @@ function formatDaySummary(totals) {
         return '—';
     }
     return Math.round(totals.calories) + ' ккал · Б ' + Math.round(totals.protein) + ' · Ж ' + Math.round(totals.fat) + ' · У ' + Math.round(totals.carbs);
+}
+
+function _buildRecipeSelect(dayIndex, mealIndex, selectedId, isReadOnly, recipeSource, slotIndex) {
+    var selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenu()"';
+    var options = recipeSource.map(function (r) {
+        return '<option value="' + r.id + '"' + (selectedId == r.id ? ' selected' : '') + '>' + r.name + '</option>';
+    }).join('');
+    var removeBtn = '';
+    if (!isReadOnly) {
+        removeBtn = '<button type="button" class="btn-icon btn-remove-recipe" title="Убрать блюдо" onclick="removeRecipeFromSlot(' + dayIndex + ',' + mealIndex + ',' + slotIndex + ')">✕</button>';
+    }
+    return '<div class="meal-slot-recipe">' +
+        '<select data-day="' + dayIndex + '" data-meal="' + mealIndex + '" ' + selectAttrs + '>' +
+        '<option value="">Не выбрано</option>' + options + '</select>' +
+        removeBtn + '</div>';
 }
 
 function generateWeekPlanner() {
@@ -435,14 +451,24 @@ function generateWeekPlanner() {
         var totals = getDayNutritionTotals(dayIndex);
         var mealSlots = meals.map(function (meal, mealIndex) {
             var key = dayIndex + '-' + mealIndex;
-            var slotVal = weekMenu[key];
-            var selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenu()"';
-            var options = recipeSource.map(function (r) {
-                return '<option value="' + r.id + '"' + (slotVal == r.id ? ' selected' : '') + '>' + r.name + '</option>';
-            }).join('');
-            return '<div class="meal-slot"><h4>' + meal + '</h4>' +
-                '<select data-day="' + dayIndex + '" data-meal="' + mealIndex + '" ' + selectAttrs + '>' +
-                '<option value="">Не выбрано</option>' + options + '</select></div>';
+            var recipeIds = weekMenu[key] || [];
+            // Always show at least one select
+            var selects = '';
+            if (recipeIds.length === 0) {
+                selects = _buildRecipeSelect(dayIndex, mealIndex, null, isReadOnly, recipeSource, 0);
+            } else {
+                selects = recipeIds.map(function (rid, idx) {
+                    return _buildRecipeSelect(dayIndex, mealIndex, rid, isReadOnly, recipeSource, idx);
+                }).join('');
+            }
+            var addBtn = '';
+            if (!isReadOnly) {
+                addBtn = '<button type="button" class="btn-add-recipe" title="Добавить блюдо" onclick="addRecipeToSlot(' + dayIndex + ',' + mealIndex + ')">+ Блюдо</button>';
+            }
+            return '<div class="meal-slot" data-day="' + dayIndex + '" data-meal="' + mealIndex + '">' +
+                '<h4>' + meal + '</h4>' +
+                '<div class="meal-slot-recipes">' + selects + '</div>' +
+                addBtn + '</div>';
         }).join('');
         return '<div class="day-card"><h3>' + day + '</h3>' + mealSlots +
             '<div class="day-summary" data-day-index="' + dayIndex + '">' + formatDaySummary(totals) + '</div></div>';
@@ -453,14 +479,45 @@ function generateWeekPlanner() {
 function updateWeekMenu() {
     var selects = document.querySelectorAll('#weekPlanner select');
     weekMenu = {};
+    // Initialize all slots as empty arrays
+    for (var d = 0; d < 7; d++) {
+        for (var m = 0; m < 4; m++) {
+            weekMenu[d + '-' + m] = [];
+        }
+    }
     selects.forEach(function (select) {
         var key = select.dataset.day + '-' + select.dataset.meal;
-        weekMenu[key] = select.value ? parseInt(select.value) : null;
+        if (select.value) {
+            weekMenu[key].push(parseInt(select.value));
+        }
     });
     document.querySelectorAll('#weekPlanner .day-summary').forEach(function (el) {
         var dayIndex = parseInt(el.dataset.dayIndex, 10);
         el.textContent = formatDaySummary(getDayNutritionTotals(dayIndex));
     });
+}
+
+function addRecipeToSlot(dayIndex, mealIndex) {
+    updateWeekMenu();
+    var key = dayIndex + '-' + mealIndex;
+    weekMenu[key].push(null);
+    generateWeekPlanner();
+}
+
+function removeRecipeFromSlot(dayIndex, mealIndex, slotIndex) {
+    updateWeekMenu();
+    var key = dayIndex + '-' + mealIndex;
+    // Collect current values from DOM for this slot
+    var slotContainer = document.querySelector('.meal-slot[data-day="' + dayIndex + '"][data-meal="' + mealIndex + '"] .meal-slot-recipes');
+    if (!slotContainer) return;
+    var slotSelects = slotContainer.querySelectorAll('select');
+    var values = [];
+    slotSelects.forEach(function (s) {
+        values.push(s.value ? parseInt(s.value) : null);
+    });
+    values.splice(slotIndex, 1);
+    weekMenu[key] = values.filter(function (v) { return v !== null; });
+    generateWeekPlanner();
 }
 
 // --- Save and clear ---

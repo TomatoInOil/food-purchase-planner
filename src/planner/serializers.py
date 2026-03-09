@@ -227,16 +227,20 @@ def _menu_slot_key(day_of_week, meal_type):
 
 
 class MenuSlotsSerializer(serializers.Serializer):
-    """Read-only: represents a Menu's slots as {day-meal: recipe_id}."""
+    """Read-only: represents a Menu's slots as {day-meal: [recipe_id, ...]}."""
 
     def to_representation(self, instance):
         slots = MenuSlot.objects.filter(menu=instance).select_related("recipe")
-        data = {f"{s.day_of_week}-{s.meal_type}": s.recipe_id for s in slots}
+        data: dict[str, list[int]] = {}
+        for s in slots:
+            key = f"{s.day_of_week}-{s.meal_type}"
+            if s.recipe_id is not None:
+                data.setdefault(key, []).append(s.recipe_id)
         for day in range(7):
             for meal in range(4):
                 key = _menu_slot_key(day, meal)
                 if key not in data:
-                    data[key] = None
+                    data[key] = []
         return data
 
 
