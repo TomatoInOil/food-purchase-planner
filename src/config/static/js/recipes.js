@@ -150,6 +150,27 @@ function clearRecipeForm() {
     calculateNutrition();
 }
 
+function copyRecipe(recipeId) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+    editingRecipeId = null;
+    const form = document.getElementById('recipeForm');
+    form.recipeName.value = `${recipe.name} (копия)`;
+    form.recipeDescription.value = recipe.description || '';
+    form.recipeInstructions.value = recipe.instructions || '';
+    document.querySelector('#create-recipe .card-title').textContent = 'Создать новый рецепт';
+    document.getElementById('ingredientsContainer').innerHTML = '';
+    recipe.ingredients.forEach(ri => {
+        addIngredientRow();
+        const rows = document.querySelectorAll('.ingredient-row');
+        const last = rows[rows.length - 1];
+        last.querySelector('.ingredient-select').value = ri.ingredient_id;
+        last.querySelector('.ingredient-weight').value = ri.weight_grams;
+        calculateNutrition();
+    });
+    switchTab('create-recipe', document.querySelector('.tab-btn[data-tab="create-recipe"]'));
+}
+
 function loadRecipeForEdit(recipeId) {
     const recipe = recipes.find(r => r.id === recipeId);
     if (!recipe || !recipe.can_edit) return;
@@ -220,6 +241,7 @@ function showRecipeDetails(recipeId) {
     const modal = document.getElementById('recipeModal');
     document.getElementById('modalRecipeName').textContent = recipe.name;
 
+    const copyBtn = `<button class="btn btn-secondary" onclick="closeRecipeModal(); copyRecipe(${recipe.id})">Копировать</button>`;
     const editBtn = recipe.can_edit
         ? `<button class="btn btn-primary" onclick="closeRecipeModal(); loadRecipeForEdit(${recipe.id})">Редактировать</button>`
         : '';
@@ -249,7 +271,7 @@ function showRecipeDetails(recipeId) {
         <div class="nutrition-info" id="modalNutritionInfo">
             ${buildNutritionCards(recipe, 1)}
         </div>
-        <div class="modal-actions">${editBtn}</div>
+        <div class="modal-actions">${copyBtn}${editBtn}</div>
     `;
 
     modal.classList.add('active');
