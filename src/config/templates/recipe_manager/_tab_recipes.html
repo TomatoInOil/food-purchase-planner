@@ -3,6 +3,9 @@
         <h2 class="card-title">Все рецепты</h2>
         <div class="search-box">
             <input type="text" placeholder="🔍 Поиск рецептов..." id="recipeSearch" onkeyup="filterRecipes()">
+            <select id="recipeCategoryFilter" onchange="filterRecipes()" style="margin-top: 8px;">
+                <option value="">Все категории</option>
+            </select>
         </div>
         <div class="recipe-grid" id="recipeList">
         </div>

@@ -10,6 +10,7 @@ from planner.models import (
     Menu,
     MenuSlot,
     Recipe,
+    RecipeCategory,
     RecipeIngredient,
     UserFriendCode,
 )
@@ -69,6 +70,28 @@ class IngredientSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class RecipeCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecipeCategory
+        fields = ["id", "name"]
+
+    def validate_name(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("name is required")
+        user = self.context["request"].user
+        qs = RecipeCategory.objects.filter(user=user, name=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Category with this name already exists")
+        return value
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)
+
+
 class RecipeIngredientReadSerializer(serializers.Serializer):
     ingredient_id = serializers.IntegerField(read_only=True)
     ingredient_name = serializers.CharField(read_only=True)
@@ -89,6 +112,10 @@ class RecipeSerializer(serializers.ModelSerializer):
     total_protein = serializers.FloatField(read_only=True, default=0)
     total_fat = serializers.FloatField(read_only=True, default=0)
     total_carbs = serializers.FloatField(read_only=True, default=0)
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=RecipeCategory.objects.all(), allow_null=True, required=False
+    )
+    category_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -105,6 +132,8 @@ class RecipeSerializer(serializers.ModelSerializer):
             "can_edit",
             "ingredients",
             "author_username",
+            "category",
+            "category_name",
         ]
 
     def get_is_owner(self, obj):
@@ -132,6 +161,9 @@ class RecipeSerializer(serializers.ModelSerializer):
     def get_author_username(self, obj):
         return obj.user.username if obj.user_id else ""
 
+    def get_category_name(self, obj):
+        return obj.category.name if obj.category_id else None
+
     def _get_ingredients_list(self, recipe):
         return [
             {
@@ -151,6 +183,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         data["total_fat"] = instance.total_fat or 0
         data["total_carbs"] = instance.total_carbs or 0
         data["ingredients"] = self._get_ingredients_list(instance)
+        data["category"] = instance.category_id
+        data["category_name"] = instance.category.name if instance.category_id else None
         return data
 
     def validate_ingredients(self, value):
@@ -171,6 +205,7 @@ class RecipeSerializer(serializers.ModelSerializer):
             description=validated_data.get("description", ""),
             instructions=validated_data.get("instructions", ""),
             user=validated_data["user"],
+            category=validated_data.get("category"),
         )
         self._set_recipe_ingredients(recipe, ingredients_data)
         recipe.recalculate_nutrition()
@@ -184,6 +219,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         instance.instructions = validated_data.get(
             "instructions", instance.instructions
         )
+        if "category" in validated_data:
+            instance.category = validated_data["category"]
         instance.save()
         RecipeIngredient.objects.filter(recipe=instance).delete()
         self._set_recipe_ingredients(instance, ingredients_data)

@@ -12,6 +12,7 @@ from planner.models import (
     Menu,
     MenuSlot,
     Recipe,
+    RecipeCategory,
     RecipeIngredient,
     UserFriendCode,
     _generate_unique_friend_code,
@@ -57,6 +58,52 @@ class IngredientModelTests(TestCase):
         Ingredient.objects.create(user=self.user, name="Salt")
         ing2 = Ingredient.objects.create(user=other, name="Salt")
         self.assertEqual(ing2.name, "Salt")
+
+
+class RecipeCategoryModelTests(TestCase):
+    """Test RecipeCategory model behaviour."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="alice", password="pass", email="alice@test.com"
+        )
+
+    def test_str_returns_name(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        self.assertEqual(str(cat), "Десерты")
+
+    def test_ordering_by_name(self):
+        RecipeCategory.objects.create(user=self.user, name="Завтрак")
+        RecipeCategory.objects.create(user=self.user, name="Выпечка")
+        names = list(RecipeCategory.objects.values_list("name", flat=True))
+        self.assertEqual(names, ["Выпечка", "Завтрак"])
+
+    def test_unique_user_category_name_constraint(self):
+        RecipeCategory.objects.create(user=self.user, name="Десерты")
+        with self.assertRaises(IntegrityError):
+            RecipeCategory.objects.create(user=self.user, name="Десерты")
+
+    def test_same_name_different_users_allowed(self):
+        other = User.objects.create_user(
+            username="bob", password="pass", email="bob@test.com"
+        )
+        RecipeCategory.objects.create(user=self.user, name="Десерты")
+        cat2 = RecipeCategory.objects.create(user=other, name="Десерты")
+        self.assertEqual(cat2.name, "Десерты")
+
+    def test_cascade_on_user_delete(self):
+        RecipeCategory.objects.create(user=self.user, name="Десерты")
+        self.user.delete()
+        self.assertEqual(RecipeCategory.objects.count(), 0)
+
+    def test_recipe_category_set_null_on_delete(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        recipe = Recipe.objects.create(
+            user=self.user, name="Cake", description="", instructions="", category=cat
+        )
+        cat.delete()
+        recipe.refresh_from_db()
+        self.assertIsNone(recipe.category)
 
 
 class RecipeModelTests(TestCase):

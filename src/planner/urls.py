@@ -10,6 +10,7 @@ from planner.views_api import (
     MenuListCreateView,
     MenuSetPrimaryView,
     MenuView,
+    RecipeCategoryViewSet,
     RecipeViewSet,
     ShoppingListView,
 )
@@ -31,6 +32,7 @@ from planner.views_friends import (
 router = DefaultRouter()
 router.register("ingredients", IngredientViewSet, basename="ingredient")
 router.register("recipes", RecipeViewSet, basename="recipe")
+router.register("recipe-categories", RecipeCategoryViewSet, basename="recipe-category")
 router.register("friend-requests", FriendRequestViewSet, basename="friend-request")
 router.register(
     "edit-recipes-requests",

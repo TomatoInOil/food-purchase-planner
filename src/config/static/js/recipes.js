@@ -2,6 +2,56 @@
  * Recipe CRUD, rendering, filtering, ingredient rows, nutrition calculation, modal.
  */
 
+function populateCategorySelects() {
+    const filterSelect = document.getElementById('recipeCategoryFilter');
+    const formSelect = document.getElementById('recipeCategorySelect');
+
+    [filterSelect, formSelect].forEach(select => {
+        if (!select) return;
+        const prevValue = select.value;
+        const firstOption = select.options[0];
+        select.innerHTML = '';
+        select.appendChild(firstOption);
+        recipeCategories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = String(cat.id);
+            opt.textContent = cat.name;
+            select.appendChild(opt);
+        });
+        if (prevValue) select.value = prevValue;
+    });
+}
+
+function showNewCategoryInput() {
+    document.getElementById('newCategoryInput').style.display = 'block';
+    document.getElementById('newCategoryName').focus();
+}
+
+function hideNewCategoryInput() {
+    document.getElementById('newCategoryInput').style.display = 'none';
+    document.getElementById('newCategoryName').value = '';
+}
+
+async function createCategory() {
+    const nameInput = document.getElementById('newCategoryName');
+    const name = nameInput.value.trim();
+    if (!name) {
+        showError('Введите название категории');
+        return;
+    }
+    try {
+        const cat = await apiFetch('/api/recipe-categories/', { method: 'POST', body: { name } });
+        recipeCategories.push(cat);
+        recipeCategories.sort((a, b) => a.name.localeCompare(b.name));
+        populateCategorySelects();
+        document.getElementById('recipeCategorySelect').value = String(cat.id);
+        hideNewCategoryInput();
+        showToast('Категория создана');
+    } catch (e) {
+        showError(e.message || 'Ошибка создания категории');
+    }
+}
+
 function addIngredientRow() {
     const container = document.getElementById('ingredientsContainer');
     const row = document.createElement('div');
@@ -117,11 +167,15 @@ async function saveRecipe(event) {
         return;
     }
 
+    const categorySelect = document.getElementById('recipeCategorySelect');
+    const categoryValue = categorySelect ? categorySelect.value : '';
+
     const body = {
         name: form.recipeName.value.trim(),
         description: form.recipeDescription.value,
         instructions: form.recipeInstructions.value,
-        ingredients: recipeIngredients
+        ingredients: recipeIngredients,
+        category: categoryValue ? parseInt(categoryValue) : null
     };
 
     try {
@@ -135,6 +189,7 @@ async function saveRecipe(event) {
         editingRecipeId = null;
         recipes = await apiFetch('/api/recipes/');
         renderRecipes();
+        populateCategorySelects();
         switchTab('recipes', document.querySelector('.tab-btn[data-tab="recipes"]'));
     } catch (e) {
         showError(e.message || 'Ошибка сохранения рецепта');
@@ -145,6 +200,8 @@ function clearRecipeForm() {
     editingRecipeId = null;
     document.getElementById('recipeForm').reset();
     document.querySelector('#create-recipe .card-title').textContent = 'Создать новый рецепт';
+    const categorySelect = document.getElementById('recipeCategorySelect');
+    if (categorySelect) categorySelect.value = '';
     document.getElementById('ingredientsContainer').innerHTML = '';
     addIngredientRow();
     calculateNutrition();
@@ -158,6 +215,8 @@ function copyRecipe(recipeId) {
     form.recipeName.value = `${recipe.name} (копия)`;
     form.recipeDescription.value = recipe.description || '';
     form.recipeInstructions.value = recipe.instructions || '';
+    const categorySelect = document.getElementById('recipeCategorySelect');
+    if (categorySelect) categorySelect.value = recipe.category ? String(recipe.category) : '';
     document.querySelector('#create-recipe .card-title').textContent = 'Создать новый рецепт';
     document.getElementById('ingredientsContainer').innerHTML = '';
     recipe.ingredients.forEach(ri => {
@@ -179,6 +238,8 @@ function loadRecipeForEdit(recipeId) {
     form.recipeName.value = recipe.name;
     form.recipeDescription.value = recipe.description;
     form.recipeInstructions.value = recipe.instructions;
+    const categorySelect = document.getElementById('recipeCategorySelect');
+    if (categorySelect) categorySelect.value = recipe.category ? String(recipe.category) : '';
     document.querySelector('#create-recipe .card-title').textContent = 'Редактировать рецепт';
     document.getElementById('ingredientsContainer').innerHTML = '';
     recipe.ingredients.forEach(ri => {
@@ -211,9 +272,13 @@ function renderRecipes() {
                <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteRecipe(${recipe.id})">Удалить</button>`
             : '';
         const author = recipe.author_username ? `@${recipe.author_username}` : '';
+        const categoryBadge = recipe.category_name
+            ? `<span class="recipe-card__category">${recipe.category_name}</span>`
+            : '';
         return `
-        <div class="recipe-card" onclick="showRecipeDetails(${recipe.id})">
+        <div class="recipe-card" onclick="showRecipeDetails(${recipe.id})" data-category="${recipe.category || ''}">
             <h3>${recipe.name}</h3>
+            ${categoryBadge}
             <p class="recipe-card__description">${recipe.description || 'Без описания'}</p>
             <div class="recipe-meta">
                 <span>🔥 ${cals} ккал</span>
@@ -227,10 +292,15 @@ function renderRecipes() {
 
 function filterRecipes() {
     const search = document.getElementById('recipeSearch').value.toLowerCase();
+    const categoryFilter = document.getElementById('recipeCategoryFilter');
+    const selectedCategory = categoryFilter ? categoryFilter.value : '';
     const cards = document.querySelectorAll('.recipe-card');
     cards.forEach(card => {
         const name = card.querySelector('h3').textContent.toLowerCase();
-        card.style.display = name.includes(search) ? 'block' : 'none';
+        const cardCategory = card.getAttribute('data-category') || '';
+        const matchesSearch = name.includes(search);
+        const matchesCategory = !selectedCategory || cardCategory === selectedCategory;
+        card.style.display = (matchesSearch && matchesCategory) ? 'block' : 'none';
     });
 }
 
@@ -246,8 +316,13 @@ function showRecipeDetails(recipeId) {
         ? `<button class="btn btn-primary" onclick="closeRecipeModal(); loadRecipeForEdit(${recipe.id})">Редактировать</button>`
         : '';
 
+    const categoryInfo = recipe.category_name
+        ? `<p><strong>Категория:</strong> ${recipe.category_name}</p>`
+        : '';
+
     document.getElementById('modalRecipeContent').innerHTML = `
         <div class="modal-section">
+            ${categoryInfo}
             <p><strong>Описание:</strong> ${recipe.description || 'Нет описания'}</p>
         </div>
         <div class="modal-section portion-section">

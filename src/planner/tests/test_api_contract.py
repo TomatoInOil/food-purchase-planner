@@ -11,6 +11,7 @@ from planner.models import (
     Menu,
     MenuSlot,
     Recipe,
+    RecipeCategory,
     RecipeIngredient,
     UserFriendCode,
 )
@@ -1273,3 +1274,173 @@ class EditRecipesRequestFlowTests(ApiTestBase):
         self.assertEqual(len(data), 1)
         self.assertTrue(data[0]["can_edit_recipes"])
         self.assertEqual(data[0]["can_edit_recipes_status"], "accepted")
+
+
+class RecipeCategoryApiTests(ApiTestBase):
+    def test_category_list_empty(self):
+        response = self.client.get("/api/recipe-categories/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_category_create_success(self):
+        response = self.client.post(
+            "/api/recipe-categories/",
+            data='{"name":"Десерты"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["name"], "Десерты")
+        self.assertIn("id", data)
+
+    def test_category_create_duplicate_name_400(self):
+        RecipeCategory.objects.create(user=self.user, name="Десерты")
+        response = self.client.post(
+            "/api/recipe-categories/",
+            data='{"name":"Десерты"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_category_delete_success(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        response = self.client.delete(f"/api/recipe-categories/{cat.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(RecipeCategory.objects.filter(pk=cat.id).exists())
+
+    def test_category_delete_used_by_recipe_400(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        Recipe.objects.create(
+            user=self.user, name="Cake", description="", instructions="", category=cat
+        )
+        response = self.client.delete(f"/api/recipe-categories/{cat.id}/")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_category_list_includes_system_categories(self):
+        system_user = User.objects.create_user(
+            username="system", password="x", is_active=False
+        )
+        RecipeCategory.objects.create(user=system_user, name="Завтрак")
+        RecipeCategory.objects.create(user=self.user, name="Мои блюда")
+        response = self.client.get("/api/recipe-categories/")
+        self.assertEqual(response.status_code, 200)
+        names = [c["name"] for c in response.json()]
+        self.assertIn("Завтрак", names)
+        self.assertIn("Мои блюда", names)
+
+    def test_category_update_success(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Old")
+        response = self.client.put(
+            f"/api/recipe-categories/{cat.id}/",
+            data='{"name":"New"}',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        cat.refresh_from_db()
+        self.assertEqual(cat.name, "New")
+
+
+class RecipeWithCategoryApiTests(ApiTestBase):
+    def setUp(self):
+        super().setUp()
+        self.ing = Ingredient.objects.create(
+            user=self.user, name="A", calories=100, protein=10, fat=1, carbs=5
+        )
+        self.cat = RecipeCategory.objects.create(user=self.user, name="Завтрак")
+
+    def test_create_recipe_with_category(self):
+        import json
+
+        body = json.dumps(
+            {
+                "name": "Каша",
+                "description": "",
+                "instructions": "",
+                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 100}],
+                "category": self.cat.id,
+            }
+        )
+        response = self.client.post(
+            "/api/recipes/", data=body, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["category"], self.cat.id)
+        self.assertEqual(data["category_name"], "Завтрак")
+
+    def test_create_recipe_without_category(self):
+        import json
+
+        body = json.dumps(
+            {
+                "name": "Каша",
+                "description": "",
+                "instructions": "",
+                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 100}],
+            }
+        )
+        response = self.client.post(
+            "/api/recipes/", data=body, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIsNone(data["category"])
+        self.assertIsNone(data["category_name"])
+
+    def test_update_recipe_category(self):
+        import json
+
+        recipe = Recipe.objects.create(
+            user=self.user, name="R", description="", instructions=""
+        )
+        body = json.dumps(
+            {
+                "name": "R",
+                "description": "",
+                "instructions": "",
+                "ingredients": [{"ingredient_id": self.ing.id, "weight_grams": 100}],
+                "category": self.cat.id,
+            }
+        )
+        response = self.client.put(
+            f"/api/recipes/{recipe.id}/",
+            data=body,
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["category"], self.cat.id)
+
+    def test_filter_recipes_by_category(self):
+        Recipe.objects.create(
+            user=self.user,
+            name="With",
+            description="",
+            instructions="",
+            category=self.cat,
+        )
+        Recipe.objects.create(
+            user=self.user, name="Without", description="", instructions=""
+        )
+        response = self.client.get(f"/api/recipes/?category={self.cat.id}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["name"], "With")
+
+    def test_filter_recipes_by_none_category(self):
+        Recipe.objects.create(
+            user=self.user,
+            name="With",
+            description="",
+            instructions="",
+            category=self.cat,
+        )
+        Recipe.objects.create(
+            user=self.user, name="Without", description="", instructions=""
+        )
+        response = self.client.get("/api/recipes/?category=none")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["name"], "Without")

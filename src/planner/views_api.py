@@ -7,7 +7,14 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.models import Ingredient, Menu, MenuSlot, Recipe, RecipeIngredient
+from planner.models import (
+    Ingredient,
+    Menu,
+    MenuSlot,
+    Recipe,
+    RecipeCategory,
+    RecipeIngredient,
+)
 from planner.permissions import (
     IsOwnerOrFriendEditorOrReadOnly,
     IsOwnerOrReadOnly,
@@ -17,6 +24,7 @@ from planner.serializers import (
     IngredientSerializer,
     MenuItemSerializer,
     MenuSlotsSerializer,
+    RecipeCategorySerializer,
     RecipeCreateUpdateSerializer,
     RecipeSerializer,
     ShoppingListRequestSerializer,
@@ -164,12 +172,37 @@ class IngredientImportFromContentView(APIView):
         return _save_imported_ingredient(request, parsed)
 
 
+class RecipeCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = RecipeCategorySerializer
+    permission_classes = [IsOwnerOrReadOnly]
+
+    def get_queryset(self):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        system_user = User.objects.filter(username="system").first()
+        user_ids = [self.request.user.id]
+        if system_user:
+            user_ids.append(system_user.id)
+        return RecipeCategory.objects.filter(user_id__in=user_ids).order_by("name")
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.recipes.exists():
+            return Response(
+                {"error": "Category is used by recipes"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        instance.delete()
+        return Response({"status": "ok"})
+
+
 class RecipeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsOwnerOrFriendEditorOrReadOnly]
 
     def get_queryset(self):
         return (
-            Recipe.objects.select_related("user")
+            Recipe.objects.select_related("user", "category")
             .prefetch_related("recipe_ingredients__ingredient")
             .order_by("name")
         )
@@ -188,6 +221,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        category_param = request.query_params.get("category")
+        if category_param is not None:
+            if category_param == "none":
+                queryset = queryset.filter(category__isnull=True)
+            else:
+                queryset = queryset.filter(category_id=category_param)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
