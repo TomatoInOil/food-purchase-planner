@@ -2,7 +2,14 @@
 
 from django.contrib import admin
 
-from planner.models import Ingredient, Menu, MenuSlot, Recipe, RecipeIngredient
+from planner.models import (
+    Ingredient,
+    Menu,
+    MenuSlot,
+    Recipe,
+    RecipeCategory,
+    RecipeIngredient,
+)
 
 
 class RecipeIngredientInline(admin.TabularInline):
@@ -24,17 +31,25 @@ class IngredientAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+@admin.register(RecipeCategory)
+class RecipeCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "user")
+    list_filter = ("user",)
+    search_fields = ("name",)
+
+
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "user",
+        "category",
         "total_calories",
         "total_protein",
         "total_fat",
         "total_carbs",
     )
-    list_filter = ("user",)
+    list_filter = ("user", "category")
     search_fields = ("name", "description")
     inlines = [RecipeIngredientInline]
 

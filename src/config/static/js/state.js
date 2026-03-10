@@ -14,3 +14,4 @@ let activeMenuId = null;
 let friendMenus = [];
 let activeFriendMenuId = null;
 let friendCanEditMenus = false;
+let recipeCategories = [];

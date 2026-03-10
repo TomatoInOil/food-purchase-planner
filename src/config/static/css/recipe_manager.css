@@ -446,6 +446,16 @@ textarea {
     color: var(--muted);
 }
 
+.recipe-card__category {
+    display: inline-block;
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #e3f2fd;
+    color: #1976d2;
+    margin-bottom: 4px;
+}
+
 .recipe-meta {
     display: flex;
     gap: 15px;

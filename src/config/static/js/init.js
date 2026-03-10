@@ -4,14 +4,16 @@
 
 async function init() {
     try {
-        const [recipesData, ingredientsData, menusData] = await Promise.all([
+        const [recipesData, ingredientsData, menusData, categoriesData] = await Promise.all([
             apiFetch('/api/recipes/'),
             apiFetch('/api/ingredients/'),
-            apiFetch('/api/menus/')
+            apiFetch('/api/menus/'),
+            apiFetch('/api/recipe-categories/')
         ]);
         recipes = recipesData;
         ingredients = ingredientsData;
         menus = menusData;
+        recipeCategories = categoriesData;
 
         if (menus.length === 0) {
             const newMenu = await apiFetch('/api/menus/', {
@@ -26,6 +28,7 @@ async function init() {
         weekMenu = menuData;
 
         renderRecipes();
+        populateCategorySelects();
         renderIngredients();
         renderMenuSidebar();
         generateWeekPlanner();

@@ -11,12 +11,14 @@ from planner.models import (
     Menu,
     MenuSlot,
     Recipe,
+    RecipeCategory,
     RecipeIngredient,
 )
 from planner.serializers import (
     IngredientSerializer,
     MenuItemSerializer,
     MenuSlotsSerializer,
+    RecipeCategorySerializer,
     RecipeCreateUpdateSerializer,
     RecipeSerializer,
     ShoppingListRequestSerializer,
@@ -148,6 +150,8 @@ class RecipeSerializerTests(TestCase):
             "can_edit",
             "ingredients",
             "author_username",
+            "category",
+            "category_name",
         }
         self.assertEqual(set(data.keys()), expected_keys)
 
@@ -416,3 +420,61 @@ class ShoppingListRequestSerializerTests(TestCase):
         data = {"start_date": "2026-01-01"}
         serializer = ShoppingListRequestSerializer(data=data)
         self.assertFalse(serializer.is_valid())
+
+
+class RecipeCategorySerializerTests(TestCase):
+    """Test RecipeCategorySerializer validation and representation."""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = User.objects.create_user(
+            username="alice", password="pass", email="alice@test.com"
+        )
+        self.request = self.factory.get("/")
+        self.request.user = self.user
+
+    def _context(self):
+        return {"request": self.request}
+
+    def test_valid_creation(self):
+        data = {"name": "Десерты"}
+        serializer = RecipeCategorySerializer(data=data, context=self._context())
+        self.assertTrue(serializer.is_valid())
+        cat = serializer.save()
+        self.assertEqual(cat.user, self.user)
+        self.assertEqual(cat.name, "Десерты")
+
+    def test_blank_name_rejected(self):
+        data = {"name": ""}
+        serializer = RecipeCategorySerializer(data=data, context=self._context())
+        self.assertFalse(serializer.is_valid())
+
+    def test_whitespace_only_name_rejected(self):
+        data = {"name": "   "}
+        serializer = RecipeCategorySerializer(data=data, context=self._context())
+        self.assertFalse(serializer.is_valid())
+
+    def test_duplicate_name_rejected(self):
+        RecipeCategory.objects.create(user=self.user, name="Десерты")
+        data = {"name": "Десерты"}
+        serializer = RecipeCategorySerializer(data=data, context=self._context())
+        self.assertFalse(serializer.is_valid())
+
+    def test_name_stripped(self):
+        data = {"name": "  Десерты  "}
+        serializer = RecipeCategorySerializer(data=data, context=self._context())
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["name"], "Десерты")
+
+    def test_all_fields_present_in_output(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        serializer = RecipeCategorySerializer(cat, context=self._context())
+        self.assertEqual(set(serializer.data.keys()), {"id", "name"})
+
+    def test_update_allows_same_name(self):
+        cat = RecipeCategory.objects.create(user=self.user, name="Десерты")
+        data = {"name": "Десерты"}
+        serializer = RecipeCategorySerializer(
+            instance=cat, data=data, context=self._context()
+        )
+        self.assertTrue(serializer.is_valid())

@@ -37,6 +37,29 @@ class Ingredient(models.Model):
         return self.name
 
 
+class RecipeCategory(models.Model):
+    """Category for recipes (e.g. first courses, desserts). Owner can CRUD; system user owns defaults."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="recipe_categories",
+    )
+    name = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "name"],
+                name="unique_user_recipe_category_name",
+            )
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class Recipe(models.Model):
     """Recipe with description, instructions, and ingredients. Owner can CRUD; others view only."""
 
@@ -46,6 +69,13 @@ class Recipe(models.Model):
         related_name="recipes",
     )
     name = models.CharField(max_length=200)
+    category = models.ForeignKey(
+        "RecipeCategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recipes",
+    )
     description = models.TextField(blank=True)
     instructions = models.TextField(blank=True)
     total_calories = models.FloatField(null=True, blank=True)
