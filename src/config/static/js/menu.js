@@ -85,6 +85,15 @@ function renderMenuSidebar() {
                 actions.appendChild(primaryBtn);
             }
 
+            if (!isViewingFriendMenu()) {
+                var duplicateBtn = document.createElement('button');
+                duplicateBtn.className = 'btn-icon';
+                duplicateBtn.title = 'Дублировать';
+                duplicateBtn.textContent = '📋';
+                duplicateBtn.onclick = function (e) { e.stopPropagation(); duplicateMenu(m.id); };
+                actions.appendChild(duplicateBtn);
+            }
+
             var renameBtn = document.createElement('button');
             renameBtn.className = 'btn-icon';
             renameBtn.title = 'Переименовать';
@@ -274,6 +283,23 @@ async function deleteMenu(menuId) {
         showToast('Меню удалено');
     } catch (e) {
         showError(e.message || 'Ошибка удаления меню');
+    }
+}
+
+async function duplicateMenu(menuId) {
+    try {
+        var newMenu = await apiFetch('/api/menus/' + menuId + '/duplicate/', { method: 'POST' });
+        menus.push(newMenu);
+        activeMenuId = newMenu.id;
+        var menuData = await apiFetch('/api/menus/' + newMenu.id + '/');
+        weekMenu = menuData;
+        renderMenuSidebar();
+        generateWeekPlanner();
+        updateShoppingOwnerLabel();
+        showToast('Меню продублировано');
+        _closeSidebarIfOpen();
+    } catch (e) {
+        showError(e.message || 'Ошибка дублирования меню');
     }
 }
 

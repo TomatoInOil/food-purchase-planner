@@ -45,6 +45,27 @@ def get_menu_for_user(user):
     return get_menu_slots(menu)
 
 
+def duplicate_menu(menu):
+    """Create a copy of the menu with all its slots. Returns the new menu."""
+    new_menu = Menu.objects.create(
+        user=menu.user,
+        name=f"{menu.name} — копия",
+    )
+    slots = MenuSlot.objects.filter(menu=menu)
+    MenuSlot.objects.bulk_create(
+        [
+            MenuSlot(
+                menu=new_menu,
+                day_of_week=s.day_of_week,
+                meal_type=s.meal_type,
+                recipe=s.recipe,
+            )
+            for s in slots
+        ]
+    )
+    return new_menu
+
+
 def calculate_shopping_list(menu, start_date, end_date, people_count=2):
     """
     Compute aggregated shopping list for a specific menu over the date range.
