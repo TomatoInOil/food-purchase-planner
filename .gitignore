@@ -201,6 +201,7 @@ cython_debug/
 .cursor/
 .cursorignore
 .cursorindexingignore
+.claude/settings.local.json
 
 # Marimo
 marimo/_static/

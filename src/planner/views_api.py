@@ -32,6 +32,7 @@ from planner.serializers import (
 from planner.services import (
     calculate_shopping_list,
     calculate_shopping_list_for_user,
+    duplicate_menu,
     get_or_create_first_menu,
 )
 from planner.services_friends import get_editable_owner_ids
@@ -333,6 +334,22 @@ class MenuSetPrimaryView(APIView):
         menu.is_primary = True
         menu.save(update_fields=["is_primary"])
         return Response({"status": "ok"})
+
+
+class MenuDuplicateView(APIView):
+    """Duplicate a menu with all its slots."""
+
+    def post(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        new_menu = duplicate_menu(menu)
+        logger.info(
+            "Menu duplicated: id=%s -> id=%s by user_id=%s",
+            menu.pk,
+            new_menu.pk,
+            request.user.pk,
+        )
+        serializer = MenuItemSerializer(new_menu)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class MenuView(APIView):
