@@ -18,10 +18,17 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from config.views import LoginView, LogoutView, RecipeManagerView, RegisterView
+from config.views import (
+    CookTodayView,
+    LoginView,
+    LogoutView,
+    RecipeManagerView,
+    RegisterView,
+)
 
 urlpatterns = [
     path("", RecipeManagerView.as_view()),
+    path("cook-today/", CookTodayView.as_view(), name="cook-today"),
     path("api/", include("planner.urls")),
     path("login/", LoginView.as_view(), name="login"),
     path("register/", RegisterView.as_view(), name="register"),

@@ -19,6 +19,13 @@ class RecipeManagerView(LoginRequiredMixin, TemplateView):
     template_name = "recipe_manager.html"
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CookTodayView(LoginRequiredMixin, TemplateView):
+    """Cook Today page; shows today's recipes in detail."""
+
+    template_name = "cook_today.html"
+
+
 class LoginView(AuthLoginView):
     """Login page."""
 

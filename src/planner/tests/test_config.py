@@ -137,20 +137,37 @@ class RegisterFormTests(TestCase):
     def test_valid_form(self):
         from config.forms import RegisterForm
 
-        form = RegisterForm(data={
-            "username": "newuser",
-            "email": "new@test.com",
-            "password1": "Str0ng!Pass#99",
-            "password2": "Str0ng!Pass#99",
-        })
+        form = RegisterForm(
+            data={
+                "username": "newuser",
+                "email": "new@test.com",
+                "password1": "Str0ng!Pass#99",
+                "password2": "Str0ng!Pass#99",
+            }
+        )
         self.assertTrue(form.is_valid())
+
+    def test_cook_today_requires_login(self):
+        response = self.client.get("/cook-today/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response.url)
+
+    def test_cook_today_renders_for_authenticated_user(self):
+        User.objects.create_user(
+            username="alice", password="pass123!Strong", email="alice@test.com"
+        )
+        self.client.login(username="alice", password="pass123!Strong")
+        response = self.client.get("/cook-today/")
+        self.assertEqual(response.status_code, 200)
 
     def test_email_optional(self):
         from config.forms import RegisterForm
 
-        form = RegisterForm(data={
-            "username": "newuser",
-            "password1": "Str0ng!Pass#99",
-            "password2": "Str0ng!Pass#99",
-        })
+        form = RegisterForm(
+            data={
+                "username": "newuser",
+                "password1": "Str0ng!Pass#99",
+                "password2": "Str0ng!Pass#99",
+            }
+        )
         self.assertTrue(form.is_valid())

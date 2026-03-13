@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Готовить сегодня{% endblock %}
+
+{% block content %}
+    <header class="cook-today-header no-print">
+        <div>
+            <h1>Готовить сегодня</h1>
+            <p class="cook-today-subtitle" id="cookTodaySubtitle">Загрузка...</p>
+        </div>
+        <div class="cook-today-header-actions">
+            <button class="btn btn-secondary" onclick="window.print()">🖨️ Печать</button>
+            <a href="/" class="btn btn-subtle cook-today-back" aria-label="Назад"><b>↩</b></a>
+        </div>
+    </header>
+    <div id="cookTodayContent">
+        <div class="empty-state">
+            <p>Загрузка...</p>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'js/api.js' %}"></script>
+    <script src="{% static 'js/cook_today.js' %}"></script>
+{% endblock %}

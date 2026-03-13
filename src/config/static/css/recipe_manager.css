@@ -1158,3 +1158,133 @@ textarea {
         width: 100%;
     }
 }
+
+/* Cook Today page */
+
+.cook-today-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.cook-today-subtitle {
+    color: var(--text-light);
+    font-size: 1.1em;
+    margin-top: 0.25rem;
+}
+
+.cook-today-header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cook-today-back {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cook-today-actions--desktop {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--light);
+}
+
+.cook-today-actions--desktop .btn {
+    width: 100%;
+}
+
+.cook-today-actions--mobile {
+    display: none;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .cook-today-actions--desktop {
+        display: none;
+    }
+
+    .cook-today-actions--mobile {
+        display: block;
+    }
+}
+
+.meal-section {
+    margin-bottom: 2rem;
+}
+
+.meal-section-title {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    color: var(--white);
+}
+
+.recipe-detail-card {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+}
+
+.recipe-detail-card h3 {
+    margin-bottom: 0.5rem;
+}
+
+.recipe-detail-description {
+    color: var(--text-light);
+    margin-bottom: 1rem;
+}
+
+.recipe-detail-section {
+    margin: 1rem 0;
+}
+
+.recipe-detail-section h4 {
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+}
+
+.recipe-detail-ingredients {
+    list-style: disc;
+    padding-left: 1.5rem;
+}
+
+.recipe-detail-ingredients li {
+    padding: 0.25rem 0;
+}
+
+.recipe-detail-instructions {
+    white-space: pre-line;
+    line-height: 1.6;
+}
+
+.empty-meal {
+    color: rgba(255, 255, 255, 0.7);
+    font-style: italic;
+}
+
+.day-totals {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.day-totals h2 {
+    color: var(--white);
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .recipe-detail-card { box-shadow: none; border: 1px solid #ddd; }
+    .meal-section { page-break-inside: avoid; }
+    body { font-size: 12pt; }
+}

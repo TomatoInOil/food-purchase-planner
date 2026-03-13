@@ -546,6 +546,21 @@ function removeRecipeFromSlot(dayIndex, mealIndex, slotIndex) {
     generateWeekPlanner();
 }
 
+// --- Cook Today ---
+
+function openCookToday() {
+    var menuId = getActiveMenuId();
+    if (!menuId) {
+        showError('Сначала выберите меню');
+        return;
+    }
+    var url = '/cook-today/?menu_id=' + menuId;
+    if (isViewingFriendMenu()) {
+        url += '&friend_id=' + currentMenuOwnerId;
+    }
+    window.location.href = url;
+}
+
 // --- Save and clear ---
 
 async function saveWeekMenu() {
