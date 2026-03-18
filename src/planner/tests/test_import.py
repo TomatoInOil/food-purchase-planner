@@ -36,6 +36,40 @@ SAMPLE_PAGE_CONTENT = """
 ккал
 """
 
+SAMPLE_PAGE_CONTENT_NUMBERED_BREADCRUMB = """
+Новости
+X5 Клуб
+Кешбэк баллами
+Подарочные сертификаты
+Оценка товаров
+Клуб тайных покупателей
+Еще
+Доставка от 0 ₽
+от 55 мин
+290
+29,0 ₽
+1
+1. Главная
+2. Сыр Galbani Моцарелла мягкий 45% БЗМЖ 125г
+4,92
+
+(3 551 оценка)
+Сыр Galbani Моцарелла мягкий 45% БЗМЖ 125г
+125 г
+19999₽
+13699₽
+Пищевая ценность на 100 г
+16.5
+белки
+17.0
+жиры
+3.0
+углеводы
+231.0
+ккал
+Описание
+"""
+
 SAMPLE_PAGE_CONTENT_COMMA_DECIMAL = """
 Каталог
 Молочные продукты
@@ -67,6 +101,14 @@ class ParseIngredientFromTextTests(TestCase):
         self.assertEqual(result.fat, 0.2)
         self.assertEqual(result.carbs, 2.2)
         self.assertEqual(result.calories, 13.0)
+
+    def test_successful_parse_numbered_breadcrumb(self):
+        result = parse_ingredient_from_text(SAMPLE_PAGE_CONTENT_NUMBERED_BREADCRUMB)
+        self.assertEqual(result.name, "Сыр Galbani Моцарелла мягкий 45% БЗМЖ 125г")
+        self.assertEqual(result.protein, 16.5)
+        self.assertEqual(result.fat, 17.0)
+        self.assertEqual(result.carbs, 3.0)
+        self.assertEqual(result.calories, 231.0)
 
     def test_parse_decimal_comma(self):
         result = parse_ingredient_from_text(SAMPLE_PAGE_CONTENT_COMMA_DECIMAL)
