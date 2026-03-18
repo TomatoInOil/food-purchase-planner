@@ -64,6 +64,13 @@ def parse_ingredient_from_text(content: str) -> ParsedIngredient:
 def _extract_name_from_breadcrumb(content: str) -> str | None:
     """Extract product name from breadcrumb: last element before first repeat or rating."""
     lines = [line.strip() for line in content.splitlines()]
+
+    # Try numbered breadcrumb format: "1. Главная", "2. Product Name"
+    name = _extract_name_from_numbered_breadcrumb(lines)
+    if name:
+        return name
+
+    # Legacy format: "Каталог" followed by category lines
     try:
         idx = lines.index("Каталог")
     except ValueError:
@@ -83,6 +90,23 @@ def _extract_name_from_breadcrumb(content: str) -> str | None:
         seen.add(line)
         name = line
     return name
+
+
+def _extract_name_from_numbered_breadcrumb(lines: list[str]) -> str | None:
+    """Extract product name from numbered breadcrumb format (e.g. '2. Product Name')."""
+    numbered_re = re.compile(r"^(\d+)\.\s+(.+)$")
+    breadcrumbs: list[tuple[int, str]] = []
+    for line in lines:
+        m = numbered_re.match(line)
+        if m:
+            breadcrumbs.append((int(m.group(1)), m.group(2)))
+        elif breadcrumbs:
+            # Stop collecting once we leave the breadcrumb block
+            break
+    if len(breadcrumbs) >= 2:
+        # Last numbered breadcrumb is the product name (first is "Главная")
+        return breadcrumbs[-1][1]
+    return None
 
 
 def _extract_nutrition_from_text(content: str) -> dict[str, float] | None:
