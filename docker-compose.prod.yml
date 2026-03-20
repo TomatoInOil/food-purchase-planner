@@ -46,6 +46,13 @@ services:
       - static_volume:/data/static:ro
     depends_on:
       - web
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true
 
 volumes:
   postgres_data:
