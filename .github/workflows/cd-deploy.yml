@@ -95,12 +95,15 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
           CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
+          GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+          GLITCHTIP_ENVIRONMENT: ${{ secrets.GLITCHTIP_ENVIRONMENT }}
+          GLITCHTIP_RELEASE: ${{ secrets.GLITCHTIP_RELEASE }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,GLITCHTIP_DSN,GLITCHTIP_ENVIRONMENT,GLITCHTIP_RELEASE
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
@@ -119,6 +122,9 @@ jobs:
               printf 'POSTGRES_USER="%s"\n' "${POSTGRES_USER:-planner}"
               printf 'POSTGRES_PASSWORD="%s"\n' "${POSTGRES_PASSWORD//\"/\\\"}"
               printf 'POSTGRES_DB="%s"\n' "${POSTGRES_DB:-planner}"
+              [ -n "$GLITCHTIP_DSN" ] && printf 'GLITCHTIP_DSN="%s"\n' "${GLITCHTIP_DSN//\"/\\\"}"
+              [ -n "$GLITCHTIP_ENVIRONMENT" ] && printf 'GLITCHTIP_ENVIRONMENT="%s"\n' "${GLITCHTIP_ENVIRONMENT//\"/\\\"}"
+              [ -n "$GLITCHTIP_RELEASE" ] && printf 'GLITCHTIP_RELEASE="%s"\n' "${GLITCHTIP_RELEASE//\"/\\\"}"
             } > .env
             chmod 600 .env
             bash deploy.sh "${IMAGE_TAG}"

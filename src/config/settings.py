@@ -13,12 +13,27 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+import sentry_sdk
 from dotenv import load_dotenv
+from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR.parent / ".env")
+
+_glitchtip_dsn = os.environ.get("GLITCHTIP_DSN", "")
+if _glitchtip_dsn:
+    sentry_sdk.init(
+        dsn=_glitchtip_dsn,
+        integrations=[DjangoIntegration()],
+        auto_session_tracking=False,
+        traces_sample_rate=float(
+            os.environ.get("GLITCHTIP_TRACES_SAMPLE_RATE", "0.01")
+        ),
+        release=os.environ.get("GLITCHTIP_RELEASE", ""),
+        environment=os.environ.get("GLITCHTIP_ENVIRONMENT", "production"),
+    )
 
 
 SECRET_KEY = os.environ.get(
