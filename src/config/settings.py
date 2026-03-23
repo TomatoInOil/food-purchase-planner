@@ -221,5 +221,18 @@ LOGGING = {
             "level": LOG_LEVEL,
             "propagate": False,
         },
+        # httpx >= 0.24.1 logs every HTTP request at INFO level.
+        # PTB uses httpx internally, so request URLs include the bot token.
+        # Force WARNING to prevent token leakage in logs.
+        "httpx": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "httpcore": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
     },
 }

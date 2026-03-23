@@ -1,5 +1,6 @@
 """Telegram polling bot for account linking."""
 
+import logging
 import os
 import uuid
 
@@ -9,6 +10,7 @@ import django
 
 django.setup()
 
+import sentry_sdk  # noqa: E402
 from django.conf import settings  # noqa: E402
 from telegram import Chat, Update  # noqa: E402
 from telegram.ext import (  # noqa: E402
@@ -19,6 +21,14 @@ from telegram.ext import (  # noqa: E402
 )
 
 from planner.models import TelegramLinkToken, UserTelegramProfile  # noqa: E402
+
+# Suppress httpx/httpcore request logs to avoid leaking the bot token in log output.
+# httpx >= 0.24.1 logs all HTTP requests at INFO level; PTB uses httpx internally,
+# so every Telegram API call (including /getUpdates) would expose the token.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -76,6 +86,12 @@ def _consume_token_and_save_profile(
     UserTelegramProfile.objects.create(user=link_token.user, chat_id=chat_id)
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log and report errors raised inside PTB handler callbacks to GlitchTip/Sentry."""
+    logger.error("Unhandled exception in PTB handler", exc_info=context.error)
+    sentry_sdk.capture_exception(context.error)
+
+
 def run_bot() -> None:
     """Build and run the polling bot."""
     application = (
@@ -85,4 +101,5 @@ def run_bot() -> None:
         .build()
     )
     application.add_handler(CommandHandler("start", start_handler))
+    application.add_error_handler(error_handler)
     application.run_polling()
