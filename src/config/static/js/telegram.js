@@ -28,6 +28,10 @@ async function linkTelegram() {
         const data = await apiFetch('/api/telegram/generate-link/', { method: 'POST' });
         if (data && data.link) {
             window.open(data.link, '_blank');
+        } else if (data && data.error) {
+            showError(data.error);
+        } else {
+            showError('Не удалось получить ссылку для привязки Telegram');
         }
     } catch (e) {
         showError(e.message || 'Не удалось получить ссылку для привязки Telegram');
@@ -48,6 +52,6 @@ function renderTelegramSection(section, data) {
     } else {
         section.innerHTML =
             '<p>Привяжите Telegram-аккаунт, чтобы получать уведомления.</p>' +
-            '<button class="btn btn-primary" onclick="linkTelegram()">Привязать Telegram</button>';
+            '<button class="btn btn-primary" style="margin-top: 12px;" onclick="linkTelegram()">Привязать Telegram</button>';
     }
 }
