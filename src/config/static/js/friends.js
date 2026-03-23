@@ -35,6 +35,7 @@ async function loadFriendsTabData() {
 
         renderFriends();
         renderFriendRequests();
+        loadTelegramStatus();
     } catch (e) {
         showError(e.message || 'Не удалось загрузить данные друзей');
     }
