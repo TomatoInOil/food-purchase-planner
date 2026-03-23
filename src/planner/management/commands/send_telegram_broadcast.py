@@ -2,10 +2,9 @@
 
 import asyncio
 
-import telegram
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from telegram.ext import AIORateLimiter
+from telegram.ext import AIORateLimiter, ApplicationBuilder
 
 from planner.models import UserTelegramProfile
 
@@ -18,16 +17,18 @@ class Command(BaseCommand):
         asyncio.run(self._broadcast(profiles))
 
     async def _broadcast(self, profiles: list[int]) -> None:
-        bot = telegram.Bot(
-            token=settings.TELEGRAM_BOT_TOKEN,
-            rate_limiter=AIORateLimiter(),
+        application = (
+            ApplicationBuilder()
+            .token(settings.TELEGRAM_BOT_TOKEN)
+            .rate_limiter(AIORateLimiter())
+            .build()
         )
         sent = 0
         failed = 0
-        async with bot:
+        async with application:
             for chat_id in profiles:
                 try:
-                    await bot.send_message(
+                    await application.bot.send_message(
                         chat_id=chat_id,
                         text="Test broadcast from food-purchase-planner",
                     )
