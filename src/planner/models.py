@@ -2,6 +2,7 @@
 
 import secrets
 import string
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -287,3 +288,41 @@ def _generate_unique_friend_code():
         )
         if not UserFriendCode.objects.filter(code=code).exists():
             return code
+
+
+class UserTelegramProfile(models.Model):
+    """Telegram profile linked to a user account."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="telegram_profile",
+    )
+    chat_id = models.BigIntegerField(unique=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user_id} — {self.chat_id}"
+
+
+class TelegramLinkToken(models.Model):
+    """One-time token for linking Telegram account to a user."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="telegram_link_tokens",
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        """Check if token is unused and not expired."""
+        from django.utils import timezone
+
+        return not self.is_used and self.expires_at > timezone.now()
+
+    def __str__(self):
+        return f"{self.user_id} — {self.token}"

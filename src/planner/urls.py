@@ -29,6 +29,10 @@ from planner.views_friends import (
     MyFriendCodeView,
     SendFriendRequestView,
 )
+from planner.views_telegram import (
+    TelegramGenerateLinkView,
+    TelegramStatusView,
+)
 
 router = DefaultRouter()
 router.register("ingredients", IngredientViewSet, basename="ingredient")
@@ -102,5 +106,15 @@ urlpatterns = [
         "friends/<int:user_id>/shopping-list/",
         FriendShoppingListView.as_view(),
         name="friend-shopping-list",
+    ),
+    path(
+        "telegram/generate-link/",
+        TelegramGenerateLinkView.as_view(),
+        name="telegram-generate-link",
+    ),
+    path(
+        "telegram/status/",
+        TelegramStatusView.as_view(),
+        name="telegram-status",
     ),
 ] + router.urls
