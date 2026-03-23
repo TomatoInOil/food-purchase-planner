@@ -27,12 +27,11 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if chat is None:
         return
 
-    args = context.args or []
-    if not args:
+    if not context.args:
         await chat.send_message("Send /start <token> to link your account.")
         return
 
-    await _link_account(chat, token_str=args[0])
+    await _link_account(chat, token_str=context.args[0])
 
 
 async def _link_account(chat: Chat, token_str: str) -> None:
