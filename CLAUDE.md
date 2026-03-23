@@ -36,6 +36,10 @@ uv run python src/manage.py migrate
 # Seed data
 uv run python src/manage.py planner_populate_default_ingredients
 uv run python src/manage.py planner_populate_default_recipes
+
+# Telegram bot
+uv run python src/manage.py run_telegram_bot        # start polling bot
+uv run python src/manage.py send_telegram_broadcast  # send broadcast to all linked users
 ```
 
 Pre-commit hooks run ruff and mypy automatically on commit.
@@ -49,10 +53,12 @@ src/
 ```
 
 **Backend layers** (in `src/planner/`):
-- `models.py` — 7 models: Ingredient, Recipe, RecipeIngredient, Menu, MenuSlot, UserFriendCode, FriendRequest
+- `models.py` — 9 models: Ingredient, Recipe, RecipeIngredient, Menu, MenuSlot, UserFriendCode, FriendRequest, UserTelegramProfile, TelegramLinkToken
 - `serializers.py` — DRF serializers (API contract layer)
 - `views_api.py` — DRF ViewSets and API views
 - `views_friends.py` — Friend management API views
+- `views_telegram.py` — Telegram account linking API views (generate link token, check status)
+- `bot.py` — Telegram polling bot (account linking via `/start <token>`)
 - `services.py` — Business logic (shopping list aggregation, menu operations)
 - `services_friends.py` — Friend relationship logic
 - `services_import.py` — Ingredient import from HTML content
@@ -67,7 +73,7 @@ src/
 - **Nutrient calculation**: Ingredients store per-100g values; `Recipe.recalculate_nutrition()` computes totals from RecipeIngredient weights. Auto-updates on save.
 - **Friend sharing**: 8-char alphanumeric codes, bidirectional requests with status workflow (pending/accepted/declined/removed/cancelled), separate permission for recipe editing.
 - **"System" user**: An inactive user whose ingredients serve as defaults for all users.
-- **Settings**: `config.settings` — reads from `.env` via python-dotenv. See `.env.example` for available variables.
+- **Settings**: `config.settings` — reads from `.env` via python-dotenv. See `.env.example` for available variables. Telegram requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME`.
 
 ## Testing
 
