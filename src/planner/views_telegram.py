@@ -20,6 +20,13 @@ class TelegramGenerateLinkView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        bot_username = settings.TELEGRAM_BOT_USERNAME
+        if not bot_username:
+            return Response(
+                {"error": "Telegram bot is not configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         user = request.user
         expires_at = timezone.now() + timedelta(minutes=LINK_TOKEN_EXPIRY_MINUTES)
 
@@ -28,7 +35,6 @@ class TelegramGenerateLinkView(APIView):
             expires_at=expires_at,
         )
 
-        bot_username = settings.TELEGRAM_BOT_USERNAME
         token_str = str(link_token.token)
         link = f"https://t.me/{bot_username}?start={token_str}"
 
