@@ -32,6 +32,24 @@ services:
       db:
         condition: service_healthy
 
+  bot:
+    build: .
+    command: ["python", "manage.py", "run_telegram_bot"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-planner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-planner}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DEBUG: "0"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   npm:
     image: jc21/nginx-proxy-manager:latest
     restart: unless-stopped
