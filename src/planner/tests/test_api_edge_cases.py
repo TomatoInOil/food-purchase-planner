@@ -15,6 +15,7 @@ from planner.models import (
     RecipeIngredient,
     UserFriendCode,
 )
+from planner.services import get_active_menu
 
 User = get_user_model()
 
@@ -357,8 +358,8 @@ class MenuApiEdgeCaseTests(TestCase):
         self.assertEqual(slots[0].meal_type, 2)
 
 
-class MenuSetPrimaryTests(TestCase):
-    """Test set-primary endpoint."""
+class MenuSetActiveTests(TestCase):
+    """Test set-active endpoint (user's active menu via UserActiveMenu)."""
 
     def setUp(self):
         self.client = Client()
@@ -367,22 +368,20 @@ class MenuSetPrimaryTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_set_primary(self):
-        menu1 = Menu.objects.create(user=self.user, name="A", is_primary=True)
+    def test_set_active(self):
+        menu1 = Menu.objects.create(user=self.user, name="A")
         menu2 = Menu.objects.create(user=self.user, name="B")
-        response = self.client.post(f"/api/menus/{menu2.id}/set-primary/")
+        self.assertEqual(get_active_menu(self.user), menu1)
+        response = self.client.post(f"/api/menus/{menu2.id}/set-active/")
         self.assertEqual(response.status_code, 200)
-        menu1.refresh_from_db()
-        menu2.refresh_from_db()
-        self.assertFalse(menu1.is_primary)
-        self.assertTrue(menu2.is_primary)
+        self.assertEqual(get_active_menu(self.user), menu2)
 
-    def test_set_primary_other_users_menu_404(self):
+    def test_set_active_other_users_menu_404(self):
         other = User.objects.create_user(
             username="bob", password="pass", email="bob@test.com"
         )
         menu = Menu.objects.create(user=other, name="Other")
-        response = self.client.post(f"/api/menus/{menu.id}/set-primary/")
+        response = self.client.post(f"/api/menus/{menu.id}/set-active/")
         self.assertEqual(response.status_code, 404)
 
 

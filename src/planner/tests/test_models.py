@@ -267,10 +267,6 @@ class MenuModelTests(TestCase):
         self.assertEqual(menus[0].pk, m1.pk)
         self.assertEqual(menus[1].pk, m2.pk)
 
-    def test_is_primary_default_false(self):
-        menu = Menu.objects.create(user=self.user, name="Test")
-        self.assertFalse(menu.is_primary)
-
 
 class MenuSlotModelTests(TestCase):
     """Test MenuSlot model constraints and __str__."""
