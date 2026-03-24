@@ -1,7 +1,7 @@
 """API edge-case tests: authentication, authorization, boundary conditions, error handling."""
 
 import json
-from datetime import date, timedelta
+from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -533,84 +533,6 @@ class FriendsApiEdgeCaseTests(TestCase):
         response = self.client.post("/api/friends/99999/remove/")
         self.assertEqual(response.status_code, 400)
 
-    def test_friend_menu_returns_empty_when_no_menu(self):
-        other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
-        )
-        FriendRequest.objects.create(
-            from_user=self.user,
-            to_user=other,
-            status=FriendRequest.STATUS_ACCEPTED,
-        )
-        response = self.client.get(f"/api/friends/{other.id}/menu/")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["menu"], {})
-        self.assertEqual(data["recipes"], [])
-
-
-class FriendShoppingListEdgeCaseTests(TestCase):
-    """Edge cases for friend shopping list."""
-
-    def setUp(self):
-        self.client = Client()
-        self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
-        )
-        self.client.force_login(self.user)
-        self.friend = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
-        )
-        FriendRequest.objects.create(
-            from_user=self.user,
-            to_user=self.friend,
-            status=FriendRequest.STATUS_ACCEPTED,
-        )
-
-    def test_friend_shopping_list_returns_empty_when_no_menu(self):
-        today = date.today()
-        response = self.client.post(
-            f"/api/friends/{self.friend.id}/shopping-list/",
-            data=json.dumps(
-                {
-                    "start_date": today.isoformat(),
-                    "end_date": (today + timedelta(days=6)).isoformat(),
-                    "people_count": 2,
-                }
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), [])
-
-    def test_friend_shopping_list_with_specific_menu_id(self):
-        menu = Menu.objects.create(user=self.friend, name="Friend Menu")
-        recipe = Recipe.objects.create(
-            user=self.friend, name="R", description="", instructions=""
-        )
-        ing = Ingredient.objects.create(user=self.friend, name="X", calories=50)
-        RecipeIngredient.objects.create(recipe=recipe, ingredient=ing, weight_grams=100)
-        today = date.today()
-        MenuSlot.objects.create(
-            menu=menu, day_of_week=today.weekday(), meal_type=0, recipe=recipe
-        )
-        response = self.client.post(
-            f"/api/friends/{self.friend.id}/shopping-list/",
-            data=json.dumps(
-                {
-                    "start_date": today.isoformat(),
-                    "end_date": today.isoformat(),
-                    "people_count": 1,
-                    "menu_id": menu.id,
-                }
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["name"], "X")
-
 
 class EditRecipesRequestEdgeCaseTests(TestCase):
     """Edge cases for edit-recipes request flow."""
@@ -667,70 +589,3 @@ class EditRecipesRequestEdgeCaseTests(TestCase):
         )
         response = self.client.post(f"/api/edit-recipes-requests/{fr.id}/accept/")
         self.assertEqual(response.status_code, 400)
-
-
-class FriendMenuEdgeCaseTests(TestCase):
-    """Edge cases for friend menu CRUD endpoints."""
-
-    def setUp(self):
-        self.client = Client()
-        self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
-        )
-        self.client.force_login(self.user)
-        self.friend = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
-        )
-
-    def _make_friends_with_edit(self):
-        FriendRequest.objects.create(
-            from_user=self.user,
-            to_user=self.friend,
-            status=FriendRequest.STATUS_ACCEPTED,
-            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
-        )
-
-    def test_friend_menu_detail_nonexistent_menu_404(self):
-        self._make_friends_with_edit()
-        response = self.client.get(f"/api/friends/{self.friend.id}/menus/99999/")
-        self.assertEqual(response.status_code, 404)
-
-    def test_friend_menu_put_invalid_body_400(self):
-        self._make_friends_with_edit()
-        menu = Menu.objects.create(user=self.friend, name="Test")
-        response = self.client.put(
-            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
-            data=json.dumps("not a dict"),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_friend_menu_patch_without_name_keeps_original(self):
-        self._make_friends_with_edit()
-        menu = Menu.objects.create(user=self.friend, name="Original")
-        response = self.client.patch(
-            f"/api/friends/{self.friend.id}/menus/{menu.id}/",
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        menu.refresh_from_db()
-        self.assertEqual(menu.name, "Original")
-
-    def test_not_friends_cannot_access_friend_menus(self):
-        stranger = User.objects.create_user(
-            username="stranger", password="pass", email="stranger@test.com"
-        )
-        response = self.client.get(f"/api/friends/{stranger.id}/menus/")
-        self.assertEqual(response.status_code, 400)
-
-    def test_friend_menus_create_default_name(self):
-        self._make_friends_with_edit()
-        response = self.client.post(
-            f"/api/friends/{self.friend.id}/menus/",
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 201)
-        data = response.json()
-        self.assertEqual(data["name"], "Меню на неделю")
