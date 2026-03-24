@@ -29,6 +29,9 @@ services:
       STATIC_ROOT: /app/staticfiles
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
+      GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
     volumes:
       - static_volume:/app/staticfiles
     depends_on:
@@ -49,6 +52,9 @@ services:
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
+      GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
     depends_on:
       db:
         condition: service_healthy

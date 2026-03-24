@@ -11,6 +11,7 @@ import django
 django.setup()
 
 import sentry_sdk  # noqa: E402
+from asgiref.sync import sync_to_async  # noqa: E402
 from django.conf import settings  # noqa: E402
 from telegram import Chat, Update  # noqa: E402
 from telegram.ext import (  # noqa: E402
@@ -46,16 +47,16 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def _link_account(chat: Chat, token_str: str) -> None:
     """Validate token and link Telegram account to a user."""
-    if _is_chat_already_linked(chat.id):
+    if await sync_to_async(_is_chat_already_linked)(chat.id):
         await chat.send_message("This Telegram account is already linked.")
         return
 
-    link_token = _find_valid_token(token_str)
+    link_token = await sync_to_async(_find_valid_token)(token_str)
     if link_token is None:
         await chat.send_message("Invalid or expired token. Please generate a new link.")
         return
 
-    _consume_token_and_save_profile(link_token, chat_id=chat.id)
+    await sync_to_async(_consume_token_and_save_profile)(link_token, chat_id=chat.id)
     await chat.send_message("Your Telegram account has been successfully linked!")
 
 
