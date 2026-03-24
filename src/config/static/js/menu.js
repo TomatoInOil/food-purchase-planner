@@ -1,44 +1,28 @@
 /**
  * Weekly menu planner: sidebar, multi-menu CRUD, generation, save, clear.
- * Supports both own menus and friend menus (when collaborative editing is accepted).
+ * Supports own menus and shared menus (via MenuShare).
  */
 
 // --- Helpers ---
 
-function isViewingFriendMenu() {
-    return currentMenuOwnerId !== null;
+function _findActiveOrFirstId(menuList) {
+    var active = menuList.find(function (m) { return m.is_active === true; });
+    return active ? active.id : menuList[0].id;
+}
+
+function _getMenuById(menuId) {
+    return menus.find(function (m) { return m.id === menuId; });
+}
+
+function _isOwnMenu(menu) {
+    return !menu || menu.owner === null || menu.owner === undefined;
 }
 
 function canEditCurrentMenu() {
-    if (!isViewingFriendMenu()) return true;
-    return friendCanEditMenus;
-}
-
-function getActiveMenuList() {
-    return isViewingFriendMenu() ? friendMenus : menus;
-}
-
-function getActiveMenuId() {
-    return isViewingFriendMenu() ? activeFriendMenuId : activeMenuId;
-}
-
-function buildMenuApiUrl(menuId) {
-    if (isViewingFriendMenu()) {
-        return '/api/friends/' + currentMenuOwnerId + '/menus/' + menuId + '/';
-    }
-    return '/api/menus/' + menuId + '/';
-}
-
-function buildMenuListApiUrl() {
-    if (isViewingFriendMenu()) {
-        return '/api/friends/' + currentMenuOwnerId + '/menus/';
-    }
-    return '/api/menus/';
-}
-
-function _findPrimaryOrFirstId(menuList) {
-    var primary = menuList.find(function (m) { return m.is_primary; });
-    return primary ? primary.id : menuList[0].id;
+    var menu = _getMenuById(activeMenuId);
+    if (!menu) return false;
+    if (_isOwnMenu(menu)) return true;
+    return menu.permission === 'edit';
 }
 
 function _initEmptyWeekMenu() {
@@ -56,108 +40,110 @@ function renderMenuSidebar() {
     var list = document.getElementById('menuSidebarList');
     if (!list) return;
     list.innerHTML = '';
-    var menuList = getActiveMenuList();
-    var currentId = getActiveMenuId();
-    var editable = canEditCurrentMenu();
+
+    var ownMenus = menus.filter(function (m) { return _isOwnMenu(m); });
+    var sharedMenus = menus.filter(function (m) { return !_isOwnMenu(m); });
+
+    if (ownMenus.length > 0) {
+        _renderMenuGroup(list, 'Мои меню', ownMenus, true);
+    }
+    if (sharedMenus.length > 0) {
+        _renderMenuGroup(list, 'Доступные меню', sharedMenus, false);
+    }
+
+    updateActiveMenuTitle();
+    updateMenuSidebarVisibility();
+}
+
+function _renderMenuGroup(container, title, menuList, isOwn) {
+    var header = document.createElement('div');
+    header.className = 'menu-sidebar-group-title';
+    header.textContent = title;
+    container.appendChild(header);
 
     menuList.forEach(function (m) {
         var item = document.createElement('div');
-        item.className = 'menu-sidebar-item' + (m.id === currentId ? ' active' : '');
+        item.className = 'menu-sidebar-item' + (m.id === activeMenuId ? ' active' : '');
         item.dataset.menuId = m.id;
 
         var nameSpan = document.createElement('span');
         nameSpan.className = 'menu-sidebar-item-name';
         nameSpan.textContent = m.name;
+        if (!isOwn && m.owner) {
+            nameSpan.textContent += ' (' + m.owner.username + ')';
+        }
         nameSpan.onclick = function () { selectMenu(m.id); };
-
         item.appendChild(nameSpan);
 
-        if (editable) {
-            var actions = document.createElement('span');
-            actions.className = 'menu-sidebar-item-actions';
+        var actions = document.createElement('span');
+        actions.className = 'menu-sidebar-item-actions';
 
-            if (!isViewingFriendMenu()) {
-                var primaryBtn = document.createElement('button');
-                primaryBtn.className = 'btn-icon btn-primary-star' + (m.is_primary ? ' active' : '');
-                primaryBtn.title = m.is_primary ? 'Основное меню' : 'Сделать основным';
-                primaryBtn.textContent = m.is_primary ? '★' : '☆';
-                primaryBtn.onclick = function (e) { e.stopPropagation(); setPrimaryMenu(m.id); };
-                actions.appendChild(primaryBtn);
-            }
+        var activeBtn = document.createElement('button');
+        activeBtn.className = 'btn-icon btn-primary-star' + (m.is_active ? ' active' : '');
+        activeBtn.title = m.is_active ? 'Активное меню' : 'Сделать активным';
+        activeBtn.textContent = m.is_active ? '★' : '☆';
+        activeBtn.onclick = function (e) { e.stopPropagation(); setActiveMenu(m.id); };
+        actions.appendChild(activeBtn);
 
-            if (!isViewingFriendMenu()) {
-                var duplicateBtn = document.createElement('button');
-                duplicateBtn.className = 'btn-icon';
-                duplicateBtn.title = 'Дублировать';
-                duplicateBtn.textContent = '📋';
-                duplicateBtn.onclick = function (e) { e.stopPropagation(); duplicateMenu(m.id); };
-                actions.appendChild(duplicateBtn);
-            }
+        if (isOwn) {
+            var duplicateBtn = document.createElement('button');
+            duplicateBtn.className = 'btn-icon';
+            duplicateBtn.title = 'Дублировать';
+            duplicateBtn.textContent = '\uD83D\uDCCB';
+            duplicateBtn.onclick = function (e) { e.stopPropagation(); duplicateMenu(m.id); };
+            actions.appendChild(duplicateBtn);
 
             var renameBtn = document.createElement('button');
             renameBtn.className = 'btn-icon';
             renameBtn.title = 'Переименовать';
-            renameBtn.textContent = '✏️';
+            renameBtn.textContent = '\u270F\uFE0F';
             renameBtn.onclick = function (e) { e.stopPropagation(); renameMenu(m.id, m.name); };
+            actions.appendChild(renameBtn);
 
             var deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn-icon';
             deleteBtn.title = 'Удалить';
-            deleteBtn.textContent = '🗑️';
+            deleteBtn.textContent = '\uD83D\uDDD1\uFE0F';
             deleteBtn.onclick = function (e) { e.stopPropagation(); deleteMenu(m.id); };
-
-            actions.appendChild(renameBtn);
             actions.appendChild(deleteBtn);
-            item.appendChild(actions);
+
+            var shareBtn = document.createElement('button');
+            shareBtn.className = 'btn-icon';
+            shareBtn.title = 'Поделиться';
+            shareBtn.textContent = '\uD83D\uDD17';
+            shareBtn.onclick = function (e) { e.stopPropagation(); openSharePanel(m.id); };
+            actions.appendChild(shareBtn);
         }
 
-        list.appendChild(item);
+        item.appendChild(actions);
+        container.appendChild(item);
     });
-    updateActiveMenuTitle();
-    updateMenuSidebarVisibility();
 }
 
 function updateActiveMenuTitle() {
     var titleEl = document.getElementById('activeMenuTitle');
     if (!titleEl) return;
-    if (isViewingFriendMenu()) {
-        var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
-        var friendName = friend ? friend.username : 'друга';
-        var activeMenu = friendMenus.find(function (m) { return m.id === activeFriendMenuId; });
-        if (activeMenu) {
-            titleEl.textContent = activeMenu.name + ' (' + friendName + ')';
-        } else {
-            titleEl.textContent = 'Меню ' + friendName;
+    var activeMenu = _getMenuById(activeMenuId);
+    if (activeMenu) {
+        var label = activeMenu.name;
+        if (!_isOwnMenu(activeMenu) && activeMenu.owner) {
+            label += ' (' + activeMenu.owner.username + ')';
         }
-        return;
+        titleEl.textContent = label;
+    } else {
+        titleEl.textContent = 'Планирование меню на неделю';
     }
-    var activeMenu = menus.find(function (m) { return m.id === activeMenuId; });
-    titleEl.textContent = activeMenu ? activeMenu.name : 'Планирование меню на неделю';
 }
 
 function updateMenuSidebarVisibility() {
     var sidebar = document.getElementById('menuSidebar');
     var toggle = document.getElementById('menuSidebarToggle');
-    var titleEl = document.getElementById('menuSidebarTitle');
     var createBtn = document.getElementById('menuSidebarCreateBtn');
     if (!sidebar) return;
 
-    var hasFriendMenus = isViewingFriendMenu() && friendMenus.length > 0;
-    var showSidebar = !isViewingFriendMenu() || hasFriendMenus;
-    sidebar.classList.toggle('hidden', !showSidebar);
-    if (toggle) toggle.classList.toggle('hidden', !showSidebar);
-
-    if (titleEl) {
-        if (isViewingFriendMenu()) {
-            var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
-            titleEl.textContent = friend ? 'Меню ' + friend.username : 'Меню друга';
-        } else {
-            titleEl.textContent = 'Мои меню';
-        }
-    }
-    if (createBtn) {
-        createBtn.style.display = canEditCurrentMenu() ? '' : 'none';
-    }
+    sidebar.classList.toggle('hidden', false);
+    if (toggle) toggle.classList.toggle('hidden', false);
+    if (createBtn) createBtn.style.display = '';
 }
 
 function toggleMenuSidebar() {
@@ -167,24 +153,9 @@ function toggleMenuSidebar() {
 }
 
 async function selectMenu(menuId) {
-    if (!isViewingFriendMenu()) {
-        try {
-            var menuData = await apiFetch('/api/menus/' + menuId + '/');
-            activeMenuId = menuId;
-            weekMenu = menuData;
-            renderMenuSidebar();
-            generateWeekPlanner();
-            updateShoppingOwnerLabel();
-            _closeSidebarIfOpen();
-        } catch (e) {
-            showError(e.message || 'Ошибка загрузки меню');
-        }
-        return;
-    }
-
     try {
-        var menuData = await apiFetch('/api/friends/' + currentMenuOwnerId + '/menus/' + menuId + '/');
-        activeFriendMenuId = menuId;
+        var menuData = await apiFetch('/api/menus/' + menuId + '/');
+        activeMenuId = menuId;
         weekMenu = menuData;
         renderMenuSidebar();
         generateWeekPlanner();
@@ -207,19 +178,12 @@ async function createNewMenu() {
     if (name === null) return;
     name = name.trim() || 'Меню на неделю';
     try {
-        var newMenu = await apiFetch(buildMenuListApiUrl(), {
+        var newMenu = await apiFetch('/api/menus/', {
             method: 'POST',
             body: { name: name }
         });
-        var menuList = getActiveMenuList();
-        menuList.push(newMenu);
-
-        if (isViewingFriendMenu()) {
-            activeFriendMenuId = newMenu.id;
-        } else {
-            activeMenuId = newMenu.id;
-        }
-
+        menus.push(newMenu);
+        activeMenuId = newMenu.id;
         _initEmptyWeekMenu();
         renderMenuSidebar();
         generateWeekPlanner();
@@ -236,13 +200,12 @@ async function renameMenu(menuId, currentName) {
     if (newName === null || newName.trim() === '' || newName.trim() === currentName) return;
     newName = newName.trim();
     try {
-        var updated = await apiFetch(buildMenuApiUrl(menuId), {
+        var updated = await apiFetch('/api/menus/' + menuId + '/', {
             method: 'PATCH',
             body: { name: newName }
         });
-        var menuList = getActiveMenuList();
-        var idx = menuList.findIndex(function (m) { return m.id === menuId; });
-        if (idx !== -1) menuList[idx].name = updated.name;
+        var idx = menus.findIndex(function (m) { return m.id === menuId; });
+        if (idx !== -1) menus[idx].name = updated.name;
         renderMenuSidebar();
         updateShoppingOwnerLabel();
         showToast('Меню переименовано');
@@ -252,31 +215,20 @@ async function renameMenu(menuId, currentName) {
 }
 
 async function deleteMenu(menuId) {
-    var menuList = getActiveMenuList();
-    if (menuList.length <= 1) {
+    var ownMenus = menus.filter(function (m) { return _isOwnMenu(m); });
+    if (ownMenus.length <= 1) {
         showError('Нельзя удалить единственное меню');
         return;
     }
     if (!confirm('Удалить это меню? Все блюда в нём будут потеряны.')) return;
     try {
-        await apiFetch(buildMenuApiUrl(menuId), { method: 'DELETE' });
-
-        if (isViewingFriendMenu()) {
-            friendMenus = friendMenus.filter(function (m) { return m.id !== menuId; });
-            if (activeFriendMenuId === menuId) {
-                activeFriendMenuId = friendMenus[0].id;
-                var menuData = await apiFetch(buildMenuApiUrl(activeFriendMenuId));
-                weekMenu = menuData;
-            }
-        } else {
-            menus = menus.filter(function (m) { return m.id !== menuId; });
-            if (activeMenuId === menuId) {
-                activeMenuId = menus[0].id;
-                var menuData = await apiFetch(buildMenuApiUrl(activeMenuId));
-                weekMenu = menuData;
-            }
+        await apiFetch('/api/menus/' + menuId + '/', { method: 'DELETE' });
+        menus = menus.filter(function (m) { return m.id !== menuId; });
+        if (activeMenuId === menuId) {
+            activeMenuId = menus[0].id;
+            var menuData = await apiFetch('/api/menus/' + activeMenuId + '/');
+            weekMenu = menuData;
         }
-
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
@@ -303,98 +255,164 @@ async function duplicateMenu(menuId) {
     }
 }
 
-async function setPrimaryMenu(menuId) {
+async function setActiveMenu(menuId) {
     try {
-        await apiFetch('/api/menus/' + menuId + '/set-primary/', { method: 'POST' });
-        menus.forEach(function (m) { m.is_primary = (m.id === menuId); });
+        await apiFetch('/api/menus/' + menuId + '/set-active/', { method: 'POST' });
+        menus.forEach(function (m) { m.is_active = (m.id === menuId); });
         renderMenuSidebar();
-        showToast('Основное меню установлено');
+        showToast('Активное меню установлено');
     } catch (e) {
-        showError(e.message || 'Ошибка установки основного меню');
+        showError(e.message || 'Ошибка установки активного меню');
     }
 }
 
-// --- Friend menu owner select ---
+// --- Sharing panel ---
 
-function populateMenuOwnerSelect() {
-    var select = document.getElementById('menuOwnerSelect');
-    if (!select) return;
-    var prevValue = select.value;
-    while (select.options.length > 1) {
-        select.remove(1);
+async function openSharePanel(menuId) {
+    try {
+        var shares = await apiFetch('/api/menus/' + menuId + '/shares/');
+        _renderShareModal(menuId, shares);
+    } catch (e) {
+        showError(e.message || 'Ошибка загрузки шарингов');
     }
-    if (friends && friends.length > 0) {
+}
+
+function _renderShareModal(menuId, shares) {
+    var existingModal = document.getElementById('menuShareModal');
+    if (existingModal) existingModal.remove();
+
+    var modal = document.createElement('div');
+    modal.id = 'menuShareModal';
+    modal.className = 'modal-overlay active';
+
+    var content = document.createElement('div');
+    content.className = 'modal-content';
+
+    var title = document.createElement('h3');
+    title.textContent = 'Доступ к меню';
+    content.appendChild(title);
+
+    if (shares.length > 0) {
+        var list = document.createElement('div');
+        list.className = 'share-list';
+        shares.forEach(function (s) {
+            var row = document.createElement('div');
+            row.className = 'share-row';
+            row.innerHTML = '<span>' + s.shared_with.username + ' (' + s.permission + ')</span>';
+
+            var revokeBtn = document.createElement('button');
+            revokeBtn.className = 'btn btn-danger btn-small';
+            revokeBtn.textContent = 'Убрать';
+            revokeBtn.onclick = function () { revokeShare(menuId, s.id); };
+            row.appendChild(revokeBtn);
+            list.appendChild(row);
+        });
+        content.appendChild(list);
+    } else {
+        var empty = document.createElement('p');
+        empty.textContent = 'Меню ни с кем не разделено.';
+        content.appendChild(empty);
+    }
+
+    var hr = document.createElement('hr');
+    content.appendChild(hr);
+
+    var addTitle = document.createElement('h4');
+    addTitle.textContent = 'Поделиться с другом';
+    content.appendChild(addTitle);
+
+    var friendSelect = document.createElement('select');
+    friendSelect.id = 'shareMenuFriendSelect';
+    var defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Выберите друга';
+    friendSelect.appendChild(defaultOpt);
+    if (typeof friends !== 'undefined' && friends.length > 0) {
         friends.forEach(function (f) {
-            var opt = document.createElement('option');
-            opt.value = String(f.user_id);
-            opt.textContent = f.username || '';
-            select.appendChild(opt);
+            var existingShare = shares.find(function (s) { return s.shared_with.id === f.user_id; });
+            if (!existingShare) {
+                var opt = document.createElement('option');
+                opt.value = f.user_id;
+                opt.textContent = f.username;
+                friendSelect.appendChild(opt);
+            }
         });
     }
-    var validValues = [''].concat((friends || []).map(function (f) { return String(f.user_id); }));
-    if (prevValue && validValues.indexOf(prevValue) === -1) {
-        select.value = '';
-        handleMenuOwnerChange();
+    content.appendChild(friendSelect);
+
+    var permSelect = document.createElement('select');
+    permSelect.id = 'shareMenuPermSelect';
+    var readOpt = document.createElement('option');
+    readOpt.value = 'read';
+    readOpt.textContent = 'Чтение';
+    var editOpt = document.createElement('option');
+    editOpt.value = 'edit';
+    editOpt.textContent = 'Редактирование';
+    permSelect.appendChild(readOpt);
+    permSelect.appendChild(editOpt);
+    content.appendChild(permSelect);
+
+    var addBtn = document.createElement('button');
+    addBtn.className = 'btn btn-primary';
+    addBtn.textContent = 'Поделиться';
+    addBtn.onclick = function () { addShare(menuId); };
+    content.appendChild(addBtn);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-secondary';
+    closeBtn.textContent = 'Закрыть';
+    closeBtn.style.marginLeft = '8px';
+    closeBtn.onclick = function () { modal.remove(); };
+    content.appendChild(closeBtn);
+
+    modal.appendChild(content);
+    modal.onclick = function (e) { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+}
+
+async function addShare(menuId) {
+    var friendSelect = document.getElementById('shareMenuFriendSelect');
+    var permSelect = document.getElementById('shareMenuPermSelect');
+    if (!friendSelect || !friendSelect.value) {
+        showError('Выберите друга');
+        return;
+    }
+    try {
+        await apiFetch('/api/menus/' + menuId + '/shares/', {
+            method: 'POST',
+            body: { user_id: parseInt(friendSelect.value), permission: permSelect.value }
+        });
+        showToast('Доступ предоставлен');
+        openSharePanel(menuId);
+    } catch (e) {
+        showError(e.message || 'Ошибка предоставления доступа');
     }
 }
+
+async function revokeShare(menuId, shareId) {
+    try {
+        await apiFetch('/api/menus/' + menuId + '/shares/' + shareId + '/', { method: 'DELETE' });
+        showToast('Доступ отозван');
+        openSharePanel(menuId);
+    } catch (e) {
+        showError(e.message || 'Ошибка отзыва доступа');
+    }
+}
+
+// --- Shopping owner label ---
 
 function updateShoppingOwnerLabel() {
     var label = document.getElementById('shoppingOwnerLabel');
     if (!label) return;
-    if (isViewingFriendMenu()) {
-        var friend = friends.find(function (f) { return f.user_id === currentMenuOwnerId; });
-        label.textContent = friend ? '(меню ' + friend.username + ')' : '(меню друга)';
-    } else {
-        var activeMenu = menus.find(function (m) { return m.id === activeMenuId; });
-        label.textContent = activeMenu ? '(' + activeMenu.name + ')' : '(моё меню)';
-    }
-}
-
-function handleMenuOwnerChange() {
-    var select = document.getElementById('menuOwnerSelect');
-    if (!select) return;
-    var value = select.value;
-    if (!value) {
-        _resetToOwnMenu();
-        return;
-    }
-    var friendId = parseInt(value, 10);
-    currentMenuOwnerId = friendId;
-    _loadFriendMenus(friendId);
-}
-
-function _resetToOwnMenu() {
-    currentMenuOwnerId = null;
-    friendMenus = [];
-    activeFriendMenuId = null;
-    friendCanEditMenus = false;
-    selectMenu(activeMenuId);
-}
-
-async function _loadFriendMenus(friendId) {
-    try {
-        var response = await apiFetch('/api/friends/' + friendId + '/menus/');
-        friendMenus = response.menus || [];
-        friendCanEditMenus = response.can_edit || false;
-
-        if (friendMenus.length > 0) {
-            activeFriendMenuId = _findPrimaryOrFirstId(friendMenus);
-            var menuData = await apiFetch('/api/friends/' + friendId + '/menus/' + activeFriendMenuId + '/');
-            weekMenu = menuData;
-        } else {
-            activeFriendMenuId = null;
-            _initEmptyWeekMenu();
+    var activeMenu = _getMenuById(activeMenuId);
+    if (activeMenu) {
+        var text = activeMenu.name;
+        if (!_isOwnMenu(activeMenu) && activeMenu.owner) {
+            text += ' — ' + activeMenu.owner.username;
         }
-
-        renderMenuSidebar();
-        generateWeekPlanner();
-        updateShoppingOwnerLabel();
-        updateSaveClearButtonsState();
-    } catch (e) {
-        showError(e.message || 'Ошибка загрузки меню друга');
-        currentMenuOwnerId = null;
-        friendMenus = [];
-        friendCanEditMenus = false;
+        label.textContent = '(' + text + ')';
+    } else {
+        label.textContent = '(моё меню)';
     }
 }
 
@@ -430,14 +448,16 @@ function getDayNutritionTotals(dayIndex) {
     var source = getRecipeSource();
     var calories = 0, protein = 0, fat = 0, carbs = 0;
     for (var m = 0; m < 4; m++) {
-        var recipeIds = weekMenu[dayIndex + '-' + m] || [];
-        recipeIds.forEach(function (recipeId) {
+        var slotEntries = weekMenu[dayIndex + '-' + m] || [];
+        slotEntries.forEach(function (entry) {
+            var recipeId = typeof entry === 'object' ? entry.recipe_id : entry;
+            var servings = typeof entry === 'object' ? (entry.servings || 1) : 1;
             var r = source.find(function (x) { return x.id === recipeId; });
             if (r) {
-                calories += r.total_calories || 0;
-                protein += r.total_protein || 0;
-                fat += r.total_fat || 0;
-                carbs += r.total_carbs || 0;
+                calories += (r.total_calories || 0) * servings;
+                protein += (r.total_protein || 0) * servings;
+                fat += (r.total_fat || 0) * servings;
+                carbs += (r.total_carbs || 0) * servings;
             }
         });
     }
@@ -446,24 +466,38 @@ function getDayNutritionTotals(dayIndex) {
 
 function formatDaySummary(totals) {
     if (totals.calories === 0 && totals.protein === 0 && totals.fat === 0 && totals.carbs === 0) {
-        return '—';
+        return '\u2014';
     }
-    return Math.round(totals.calories) + ' ккал · Б ' + Math.round(totals.protein) + ' · Ж ' + Math.round(totals.fat) + ' · У ' + Math.round(totals.carbs);
+    return Math.round(totals.calories) + ' ккал \u00B7 Б ' + Math.round(totals.protein) + ' \u00B7 Ж ' + Math.round(totals.fat) + ' \u00B7 У ' + Math.round(totals.carbs);
 }
 
-function _buildRecipeSelect(dayIndex, mealIndex, selectedId, isReadOnly, recipeSource, slotIndex) {
+function _buildRecipeSelect(dayIndex, mealIndex, entry, isReadOnly, recipeSource, slotIndex) {
+    var selectedId = typeof entry === 'object' && entry ? entry.recipe_id : entry;
+    var servings = typeof entry === 'object' && entry ? (entry.servings || 1) : 1;
+
     var selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenu()"';
     var options = recipeSource.map(function (r) {
         return '<option value="' + r.id + '"' + (selectedId == r.id ? ' selected' : '') + '>' + r.name + '</option>';
     }).join('');
+
+    var servingsInput = '';
+    if (!isReadOnly) {
+        servingsInput = '<input type="number" class="servings-input" data-day="' + dayIndex +
+            '" data-meal="' + mealIndex + '" data-slot="' + slotIndex +
+            '" min="1" max="99" value="' + servings +
+            '" title="Порций" onchange="updateWeekMenu()">';
+    } else {
+        servingsInput = '<span class="servings-display" title="Порций">\u00D7' + servings + '</span>';
+    }
+
     var removeBtn = '';
     if (!isReadOnly) {
-        removeBtn = '<button type="button" class="btn-icon btn-remove-recipe" title="Убрать блюдо" onclick="removeRecipeFromSlot(' + dayIndex + ',' + mealIndex + ',' + slotIndex + ')">✕</button>';
+        removeBtn = '<button type="button" class="btn-icon btn-remove-recipe" title="Убрать блюдо" onclick="removeRecipeFromSlot(' + dayIndex + ',' + mealIndex + ',' + slotIndex + ')">\u2715</button>';
     }
     return '<div class="meal-slot-recipe">' +
         '<select data-day="' + dayIndex + '" data-meal="' + mealIndex + '" ' + selectAttrs + '>' +
         '<option value="">Не выбрано</option>' + options + '</select>' +
-        removeBtn + '</div>';
+        servingsInput + removeBtn + '</div>';
 }
 
 function generateWeekPlanner() {
@@ -477,14 +511,13 @@ function generateWeekPlanner() {
         var totals = getDayNutritionTotals(dayIndex);
         var mealSlots = meals.map(function (meal, mealIndex) {
             var key = dayIndex + '-' + mealIndex;
-            var recipeIds = weekMenu[key] || [];
-            // Always show at least one select
+            var entries = weekMenu[key] || [];
             var selects = '';
-            if (recipeIds.length === 0) {
+            if (entries.length === 0) {
                 selects = _buildRecipeSelect(dayIndex, mealIndex, null, isReadOnly, recipeSource, 0);
             } else {
-                selects = recipeIds.map(function (rid, idx) {
-                    return _buildRecipeSelect(dayIndex, mealIndex, rid, isReadOnly, recipeSource, idx);
+                selects = entries.map(function (entry, idx) {
+                    return _buildRecipeSelect(dayIndex, mealIndex, entry, isReadOnly, recipeSource, idx);
                 }).join('');
             }
             var addBtn = '';
@@ -503,20 +536,31 @@ function generateWeekPlanner() {
 }
 
 function updateWeekMenu() {
-    var selects = document.querySelectorAll('#weekPlanner select');
+    var container = document.getElementById('weekPlanner');
     weekMenu = {};
-    // Initialize all slots as empty arrays
     for (var d = 0; d < 7; d++) {
         for (var m = 0; m < 4; m++) {
             weekMenu[d + '-' + m] = [];
         }
     }
-    selects.forEach(function (select) {
-        var key = select.dataset.day + '-' + select.dataset.meal;
-        if (select.value) {
-            weekMenu[key].push(parseInt(select.value));
-        }
+
+    var mealSlots = container.querySelectorAll('.meal-slot');
+    mealSlots.forEach(function (slotEl) {
+        var day = slotEl.dataset.day;
+        var meal = slotEl.dataset.meal;
+        var key = day + '-' + meal;
+
+        var recipeEls = slotEl.querySelectorAll('.meal-slot-recipe');
+        recipeEls.forEach(function (recipeEl) {
+            var select = recipeEl.querySelector('select');
+            var servingsInput = recipeEl.querySelector('.servings-input');
+            if (select && select.value) {
+                var servings = servingsInput ? parseInt(servingsInput.value, 10) || 1 : 1;
+                weekMenu[key].push({ recipe_id: parseInt(select.value), servings: servings });
+            }
+        });
     });
+
     document.querySelectorAll('#weekPlanner .day-summary').forEach(function (el) {
         var dayIndex = parseInt(el.dataset.dayIndex, 10);
         el.textContent = formatDaySummary(getDayNutritionTotals(dayIndex));
@@ -526,39 +570,25 @@ function updateWeekMenu() {
 function addRecipeToSlot(dayIndex, mealIndex) {
     updateWeekMenu();
     var key = dayIndex + '-' + mealIndex;
-    weekMenu[key].push(null);
+    weekMenu[key].push({ recipe_id: null, servings: 1 });
     generateWeekPlanner();
 }
 
 function removeRecipeFromSlot(dayIndex, mealIndex, slotIndex) {
     updateWeekMenu();
     var key = dayIndex + '-' + mealIndex;
-    // Collect current values from DOM for this slot
-    var slotContainer = document.querySelector('.meal-slot[data-day="' + dayIndex + '"][data-meal="' + mealIndex + '"] .meal-slot-recipes');
-    if (!slotContainer) return;
-    var slotSelects = slotContainer.querySelectorAll('select');
-    var values = [];
-    slotSelects.forEach(function (s) {
-        values.push(s.value ? parseInt(s.value) : null);
-    });
-    values.splice(slotIndex, 1);
-    weekMenu[key] = values.filter(function (v) { return v !== null; });
+    weekMenu[key].splice(slotIndex, 1);
     generateWeekPlanner();
 }
 
 // --- Cook Today ---
 
 function openCookToday() {
-    var menuId = getActiveMenuId();
-    if (!menuId) {
+    if (!activeMenuId) {
         showError('Сначала выберите меню');
         return;
     }
-    var url = '/cook-today/?menu_id=' + menuId;
-    if (isViewingFriendMenu()) {
-        url += '&friend_id=' + currentMenuOwnerId;
-    }
-    window.location.href = url;
+    window.location.href = '/cook-today/?menu_id=' + activeMenuId;
 }
 
 // --- Save and clear ---
@@ -568,14 +598,13 @@ async function saveWeekMenu() {
         showError('Нет прав на редактирование этого меню');
         return;
     }
-    var menuId = getActiveMenuId();
-    if (!menuId) {
+    if (!activeMenuId) {
         showError('Не выбрано меню');
         return;
     }
     updateWeekMenu();
     try {
-        await apiFetch(buildMenuApiUrl(menuId), { method: 'PUT', body: weekMenu });
+        await apiFetch('/api/menus/' + activeMenuId + '/', { method: 'PUT', body: weekMenu });
         showToast('Меню сохранено');
     } catch (e) {
         showError(e.message || 'Ошибка сохранения меню');
@@ -587,12 +616,11 @@ async function clearWeekMenu() {
         showError('Нет прав на редактирование этого меню');
         return;
     }
-    var menuId = getActiveMenuId();
-    if (!menuId) return;
+    if (!activeMenuId) return;
     if (!confirm('Очистить все слоты этого меню?')) return;
     _initEmptyWeekMenu();
     try {
-        await apiFetch(buildMenuApiUrl(menuId), { method: 'PUT', body: weekMenu });
+        await apiFetch('/api/menus/' + activeMenuId + '/', { method: 'PUT', body: weekMenu });
         generateWeekPlanner();
     } catch (e) {
         showError(e.message || 'Ошибка очистки меню');

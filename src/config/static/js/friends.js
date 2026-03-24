@@ -83,12 +83,6 @@ async function handleFriendRequestAccept() {
         friends = await apiFetch('/api/friends/');
         renderFriendRequests();
         renderFriends();
-        if (typeof populateMenuOwnerSelect === 'function') {
-            populateMenuOwnerSelect();
-        }
-        if (typeof updateShoppingOwnerLabel === 'function') {
-            updateShoppingOwnerLabel();
-        }
     } catch (e) {
         showError(e.message || 'Не удалось принять запрос в друзья');
     } finally {
@@ -137,12 +131,8 @@ async function handleFriendRemove() {
 
         friends = await apiFetch('/api/friends/');
         renderFriends();
-        if (typeof populateMenuOwnerSelect === 'function') {
-            populateMenuOwnerSelect();
-        }
-        if (typeof updateShoppingOwnerLabel === 'function') {
-            updateShoppingOwnerLabel();
-        }
+        menus = await apiFetch('/api/menus/');
+        renderMenuSidebar();
     } catch (e) {
         showError(e.message || 'Не удалось удалить друга');
     } finally {
@@ -177,7 +167,7 @@ function renderFriends() {
         if (editStatus === 'accepted') {
             const badge = document.createElement('span');
             badge.className = 'friend-edit-badge';
-            badge.textContent = 'совместное редактирование';
+            badge.textContent = 'совм. редакт. рецептов и ингредиентов';
             li.appendChild(badge);
         } else if (editStatus === 'pending') {
             const badge = document.createElement('span');
@@ -237,7 +227,7 @@ function renderFriendRequests() {
 
             const badge = document.createElement('span');
             badge.className = 'friend-edit-badge friend-edit-badge--pending';
-            badge.textContent = 'совместное редактирование';
+            badge.textContent = 'совм. редакт. рецептов и ингредиентов';
             li.appendChild(badge);
 
             li.dataset.requestId = String(req.friend_request_id);
@@ -293,7 +283,7 @@ async function handleSendEditRecipesRequest() {
         await apiFetch(`/api/friends/${userId}/send-edit-recipes-request/`, {
             method: 'POST'
         });
-        showToast('Запрос на совместное редактирование отправлен');
+        showToast('Запрос на совм. редакт. рецептов и ингредиентов отправлен');
 
         friends = await apiFetch('/api/friends/');
         renderFriends();
@@ -323,9 +313,8 @@ async function handleRevokeEditRecipes() {
         renderFriends();
         recipes = await apiFetch('/api/recipes/');
         renderRecipes();
-        _refreshMenuIfViewingFriend(userId);
     } catch (e) {
-        showError(e.message || 'Не удалось отключить совместное редактирование');
+        showError(e.message || 'Не удалось отключить совм. редакт. рецептов и ингредиентов');
     } finally {
         closeFriendActionsModal();
         currentFriendRemoveId = null;
@@ -372,7 +361,7 @@ async function handleEditRecipesRequestDecline() {
         await apiFetch(`/api/edit-recipes-requests/${requestId}/decline/`, {
             method: 'POST'
         });
-        showToast('Запрос на совместное редактирование отклонён');
+        showToast('Запрос на совм. редакт. рецептов и ингредиентов отклонён');
 
         editRecipesRequests = await apiFetch('/api/edit-recipes-requests/');
         renderFriendRequests();
@@ -452,7 +441,7 @@ function openFriendActionsModal(friendDisplayName, editRecipesStatus) {
     }
     if (toggleBtn) {
         if (editRecipesStatus === 'accepted') {
-            toggleBtn.textContent = 'Отключить совместное редактирование';
+            toggleBtn.textContent = 'Отключить совм. редакт. рецептов и ингредиентов';
             toggleBtn.className = 'btn btn-secondary';
             toggleBtn.onclick = handleRevokeEditRecipes;
             toggleBtn.disabled = false;
@@ -462,7 +451,7 @@ function openFriendActionsModal(friendDisplayName, editRecipesStatus) {
             toggleBtn.onclick = handleRevokeEditRecipes;
             toggleBtn.disabled = false;
         } else {
-            toggleBtn.textContent = 'Запросить совместное редактирование';
+            toggleBtn.textContent = 'Запросить совм. редакт. рецептов и ингредиентов';
             toggleBtn.className = 'btn btn-primary';
             toggleBtn.onclick = handleSendEditRecipesRequest;
             toggleBtn.disabled = false;
@@ -478,7 +467,7 @@ function openEditRecipesRequestModal(userDisplayName) {
     const titleEl = document.getElementById('modalEditRecipesTitle');
     const modalEl = document.getElementById('editRecipesRequestModal');
     if (titleEl) {
-        titleEl.textContent = userDisplayName || 'Запрос на совместное редактирование';
+        titleEl.textContent = userDisplayName || 'Запрос на совм. редакт. рецептов и ингредиентов';
     }
     if (modalEl) {
         modalEl.classList.add('active');
@@ -522,10 +511,4 @@ function closeFriendRemoveModal() {
         modalEl.classList.remove('active');
     }
     currentFriendRemoveName = '';
-}
-
-function _refreshMenuIfViewingFriend(friendUserId) {
-    if (currentMenuOwnerId === friendUserId && typeof _loadFriendMenus === 'function') {
-        _loadFriendMenus(friendUserId);
-    }
 }

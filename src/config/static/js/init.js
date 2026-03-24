@@ -22,7 +22,7 @@ async function init() {
             });
             menus = [newMenu];
         }
-        activeMenuId = _findPrimaryOrFirstId(menus);
+        activeMenuId = _findActiveOrFirstId(menus);
 
         const menuData = await apiFetch(`/api/menus/${activeMenuId}/`);
         weekMenu = menuData;
@@ -35,9 +35,6 @@ async function init() {
         addIngredientRow();
         setDefaultShoppingDates();
         await loadFriendsTabData();
-        if (typeof populateMenuOwnerSelect === 'function') {
-            populateMenuOwnerSelect();
-        }
         if (typeof updateShoppingOwnerLabel === 'function') {
             updateShoppingOwnerLabel();
         }

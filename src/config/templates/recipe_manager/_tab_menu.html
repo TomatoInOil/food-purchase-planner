@@ -20,13 +20,6 @@
                 <div class="cook-today-actions cook-today-actions--mobile">
                     <button class="btn btn-primary" onclick="openCookToday()">🍳 Готовить сегодня</button>
                 </div>
-                <div class="form-group menu-owner-select">
-                    <label for="menuOwnerSelect">Меню пользователя:</label>
-                    <div class="form-help">Вы можете добавить пользователя в друзья и посмотреть его меню, а также сформировать список покупок к нему. При совместном редактировании вы можете редактировать меню друг друга.</div>
-                    <select id="menuOwnerSelect" onchange="handleMenuOwnerChange()">
-                        <option value="">Моё меню</option>
-                    </select>
-                </div>
                 <div class="week-planner" id="weekPlanner">
                 </div>
                 <div class="card-actions">
@@ -46,7 +39,7 @@
                         <input type="date" id="shoppingEndDate">
                     </div>
                     <div class="form-group">
-                        <label>Кол-во человек</label>
+                        <label>Множитель порций</label>
                         <input type="number" id="shoppingPeopleCount" min="1" max="20" value="2">
                     </div>
                     <button class="btn btn-primary" onclick="generateShoppingList()">Сформировать список</button>

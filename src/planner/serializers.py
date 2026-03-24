@@ -8,10 +8,12 @@ from planner.models import (
     FriendRequest,
     Ingredient,
     Menu,
+    MenuShare,
     MenuSlot,
     Recipe,
     RecipeCategory,
     RecipeIngredient,
+    UserActiveMenu,
     UserFriendCode,
 )
 
@@ -251,12 +253,44 @@ class RecipeCreateUpdateSerializer(RecipeSerializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
-    """Serializer for menu list items (id, name, is_primary, created_at)."""
+    """Serializer for menu list items."""
+
+    is_active = serializers.SerializerMethodField()
+    permission = serializers.SerializerMethodField()
+    owner = serializers.SerializerMethodField()
 
     class Meta:
         model = Menu
-        fields = ["id", "name", "is_primary", "created_at"]
-        read_only_fields = ["id", "is_primary", "created_at"]
+        fields = ["id", "name", "is_active", "permission", "owner", "created_at"]
+        read_only_fields = ["id", "is_active", "permission", "owner", "created_at"]
+
+    def get_is_active(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        active = (
+            UserActiveMenu.objects.filter(user=request.user)
+            .values_list("menu_id", flat=True)
+            .first()
+        )
+        return obj.pk == active
+
+    def get_permission(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+        if obj.user_id == request.user.id:
+            return None
+        share = MenuShare.objects.filter(menu=obj, shared_with=request.user).first()
+        return share.permission if share else None
+
+    def get_owner(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+        if obj.user_id == request.user.id:
+            return None
+        return {"id": obj.user_id, "username": obj.user.username}
 
 
 def _menu_slot_key(day_of_week, meal_type):
@@ -264,15 +298,17 @@ def _menu_slot_key(day_of_week, meal_type):
 
 
 class MenuSlotsSerializer(serializers.Serializer):
-    """Read-only: represents a Menu's slots as {day-meal: [recipe_id, ...]}."""
+    """Read-only: represents a Menu's slots as {day-meal: [{recipe_id, servings}, ...]}."""
 
     def to_representation(self, instance):
         slots = MenuSlot.objects.filter(menu=instance).select_related("recipe")
-        data: dict[str, list[int]] = {}
+        data: dict[str, list[dict]] = {}
         for s in slots:
             key = f"{s.day_of_week}-{s.meal_type}"
             if s.recipe_id is not None:
-                data.setdefault(key, []).append(s.recipe_id)
+                data.setdefault(key, []).append(
+                    {"recipe_id": s.recipe_id, "servings": s.servings}
+                )
         for day in range(7):
             for meal in range(4):
                 key = _menu_slot_key(day, meal)
@@ -281,11 +317,25 @@ class MenuSlotsSerializer(serializers.Serializer):
         return data
 
 
+class MenuShareSerializer(serializers.ModelSerializer):
+    """Serializer for menu sharing entries."""
+
+    shared_with = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MenuShare
+        fields = ["id", "shared_with", "permission", "created_at"]
+        read_only_fields = ["id", "shared_with", "created_at"]
+
+    def get_shared_with(self, obj):
+        return {"id": obj.shared_with_id, "username": obj.shared_with.username}
+
+
 class ShoppingListRequestSerializer(serializers.Serializer):
     start_date = serializers.CharField()
     end_date = serializers.CharField()
     people_count = serializers.IntegerField(
-        required=False, default=2, min_value=1, max_value=20
+        required=False, default=2, min_value=1, max_value=20, label="Множитель порций"
     )
 
     def validate_start_date(self, value):

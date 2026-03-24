@@ -22,7 +22,8 @@ def get_friend_user_or_404(request_user, friend_id):
     if not friend_request:
         logger.warning(
             "Friend lookup failed: user_id=%s is not friends with user_id=%s",
-            request_user.pk, friend_id,
+            request_user.pk,
+            friend_id,
         )
         from rest_framework.exceptions import ValidationError
 
@@ -43,9 +44,7 @@ def get_editable_owner_ids(editor_user):
     qs = FriendRequest.objects.filter(
         status=FriendRequest.STATUS_ACCEPTED,
         can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
-    ).filter(
-        models.Q(from_user=editor_user) | models.Q(to_user=editor_user)
-    )
+    ).filter(models.Q(from_user=editor_user) | models.Q(to_user=editor_user))
 
     owner_ids: set[int] = set()
     for fr in qs.only("from_user_id", "to_user_id").iterator():
@@ -63,37 +62,31 @@ def can_friend_edit_recipes(editor_user, recipe_owner):
     Returns True only when both users have mutually agreed to shared editing,
     i.e. an accepted friend request exists with can_edit_recipes_status='accepted'.
     """
-    return FriendRequest.objects.filter(
-        status=FriendRequest.STATUS_ACCEPTED,
-        can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
-    ).filter(
-        models.Q(from_user=editor_user, to_user=recipe_owner)
-        | models.Q(from_user=recipe_owner, to_user=editor_user)
-    ).exists()
-
-
-def can_friend_edit_menus(editor_user, menu_owner):
-    """Check if editor_user has permission to edit menu_owner's menus.
-
-    Menus share the same collaborative editing flag as recipes:
-    returns True when can_edit_recipes_status is 'accepted'.
-    """
-    return FriendRequest.objects.filter(
-        status=FriendRequest.STATUS_ACCEPTED,
-        can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
-    ).filter(
-        models.Q(from_user=editor_user, to_user=menu_owner)
-        | models.Q(from_user=menu_owner, to_user=editor_user)
-    ).exists()
+    return (
+        FriendRequest.objects.filter(
+            status=FriendRequest.STATUS_ACCEPTED,
+            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
+        )
+        .filter(
+            models.Q(from_user=editor_user, to_user=recipe_owner)
+            | models.Q(from_user=recipe_owner, to_user=editor_user)
+        )
+        .exists()
+    )
 
 
 def get_friend_request_between(user_a, user_b):
     """
     Return the accepted FriendRequest between two users, or None.
     """
-    return FriendRequest.objects.filter(
-        status=FriendRequest.STATUS_ACCEPTED,
-    ).filter(
-        models.Q(from_user=user_a, to_user=user_b)
-        | models.Q(from_user=user_b, to_user=user_a)
-    ).select_related("from_user", "to_user").first()
+    return (
+        FriendRequest.objects.filter(
+            status=FriendRequest.STATUS_ACCEPTED,
+        )
+        .filter(
+            models.Q(from_user=user_a, to_user=user_b)
+            | models.Q(from_user=user_b, to_user=user_a)
+        )
+        .select_related("from_user", "to_user")
+        .first()
+    )

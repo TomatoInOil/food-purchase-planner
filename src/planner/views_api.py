@@ -7,6 +7,8 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.contrib.auth import get_user_model
+
 from planner.models import (
     Ingredient,
     Menu,
@@ -23,6 +25,7 @@ from planner.permissions import (
 from planner.serializers import (
     IngredientSerializer,
     MenuItemSerializer,
+    MenuShareSerializer,
     MenuSlotsSerializer,
     RecipeCategorySerializer,
     RecipeCreateUpdateSerializer,
@@ -33,7 +36,11 @@ from planner.services import (
     calculate_shopping_list,
     calculate_shopping_list_for_user,
     duplicate_menu,
+    get_menu_with_access,
     get_or_create_first_menu,
+    revoke_menu_share,
+    set_active_menu,
+    share_menu,
 )
 from planner.services_friends import get_editable_owner_ids
 from planner.services_import import (
@@ -270,11 +277,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 
 class MenuListCreateView(APIView):
-    """List all menus for the current user or create a new one."""
+    """List own + shared menus for the current user, or create a new one."""
 
     def get(self, request):
-        menus = Menu.objects.filter(user=request.user)
-        serializer = MenuItemSerializer(menus, many=True)
+        own = Menu.objects.filter(user=request.user).select_related("user")
+        shared = Menu.objects.filter(shares__shared_with=request.user).select_related(
+            "user"
+        )
+        menus = list(own) + list(shared)
+        serializer = MenuItemSerializer(menus, many=True, context={"request": request})
         return Response(serializer.data)
 
     def post(self, request):
@@ -286,7 +297,7 @@ class MenuListCreateView(APIView):
             menu.name,
             request.user.pk,
         )
-        serializer = MenuItemSerializer(menu)
+        serializer = MenuItemSerializer(menu, context={"request": request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -294,12 +305,16 @@ class MenuDetailView(APIView):
     """Retrieve, update slots, rename, or delete a specific menu."""
 
     def get(self, request, menu_id):
-        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        menu = get_menu_with_access(menu_id, request.user)
+        if not menu:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = MenuSlotsSerializer(instance=menu, context={"request": request})
         return Response(serializer.data)
 
     def put(self, request, menu_id):
-        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        menu = get_menu_with_access(menu_id, request.user, require_edit=True)
+        if not menu:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         body = request.data
         if not isinstance(body, dict):
             return Response(
@@ -315,7 +330,7 @@ class MenuDetailView(APIView):
         if name:
             menu.name = name
             menu.save(update_fields=["name"])
-        serializer = MenuItemSerializer(menu)
+        serializer = MenuItemSerializer(menu, context={"request": request})
         return Response(serializer.data)
 
     def delete(self, request, menu_id):
@@ -325,14 +340,67 @@ class MenuDetailView(APIView):
         return Response({"status": "ok"})
 
 
-class MenuSetPrimaryView(APIView):
-    """Set a specific menu as the user's primary (visible to friends)."""
+class MenuSetActiveView(APIView):
+    """Set a menu as the user's active menu (own or shared)."""
+
+    def post(self, request, menu_id):
+        menu = get_menu_with_access(menu_id, request.user)
+        if not menu:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        set_active_menu(request.user, menu)
+        return Response({"status": "ok"})
+
+
+class MenuShareListCreateView(APIView):
+    """List or create shares for a menu (owner only)."""
+
+    def get(self, request, menu_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        shares = menu.shares.select_related("shared_with").all()
+        serializer = MenuShareSerializer(shares, many=True)
+        return Response(serializer.data)
 
     def post(self, request, menu_id):
         menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
-        Menu.objects.filter(user=request.user, is_primary=True).update(is_primary=False)
-        menu.is_primary = True
-        menu.save(update_fields=["is_primary"])
+        user_id = request.data.get("user_id")
+        permission = request.data.get("permission", "read")
+        if not user_id:
+            return Response(
+                {"error": "user_id обязателен"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        User = get_user_model()
+        try:
+            target_user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Пользователь не найден"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        share = share_menu(menu, target_user, permission)
+        serializer = MenuShareSerializer(share)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MenuShareDetailView(APIView):
+    """Update permission or revoke a menu share."""
+
+    def patch(self, request, menu_id, share_id):
+        menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+        share = get_object_or_404(menu.shares, pk=share_id)
+        permission = request.data.get("permission")
+        if permission:
+            share.permission = permission
+            share.save(update_fields=["permission"])
+        serializer = MenuShareSerializer(share)
+        return Response(serializer.data)
+
+    def delete(self, request, menu_id, share_id):
+        menu = get_object_or_404(Menu, pk=menu_id)
+        share = get_object_or_404(menu.shares, pk=share_id)
+        if menu.user_id != request.user.id and share.shared_with_id != request.user.id:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        revoke_menu_share(share)
         return Response({"status": "ok"})
 
 
@@ -348,7 +416,7 @@ class MenuDuplicateView(APIView):
             new_menu.pk,
             request.user.pk,
         )
-        serializer = MenuItemSerializer(new_menu)
+        serializer = MenuItemSerializer(new_menu, context={"request": request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -381,7 +449,9 @@ class ShoppingListView(APIView):
         data = serializer.validated_data
         menu_id = request.data.get("menu_id")
         if menu_id:
-            menu = get_object_or_404(Menu, pk=menu_id, user=request.user)
+            menu = get_menu_with_access(menu_id, request.user)
+            if not menu:
+                return Response(status=status.HTTP_404_NOT_FOUND)
             result = calculate_shopping_list(
                 menu,
                 data["start_date"],
@@ -416,7 +486,10 @@ def _save_imported_ingredient(request, parsed):
 def _replace_menu_slots(menu, body):
     """Delete existing slots and recreate from request body dict.
 
-    Values can be a single recipe_id (legacy) or a list of recipe_ids.
+    Supports three value formats per slot key:
+    - New: [{"recipe_id": int, "servings": int}, ...]
+    - Legacy list: [int, ...]
+    - Legacy single: int
     """
     MenuSlot.objects.filter(menu=menu).delete()
     valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
@@ -429,16 +502,22 @@ def _replace_menu_slots(menu, body):
             continue
         if day_of_week not in range(7) or meal_type not in range(4):
             continue
-        # Support both list and single value (legacy)
-        recipe_ids = value if isinstance(value, list) else [value]
-        for recipe_id in recipe_ids:
-            if recipe_id is None:
+        items = value if isinstance(value, list) else [value]
+        for item in items:
+            if item is None:
                 continue
-            if recipe_id not in valid_recipe_ids:
+            if isinstance(item, dict):
+                recipe_id = item.get("recipe_id")
+                servings = item.get("servings", 1)
+            else:
+                recipe_id = item
+                servings = 1
+            if recipe_id is None or recipe_id not in valid_recipe_ids:
                 continue
             MenuSlot.objects.create(
                 menu=menu,
                 day_of_week=day_of_week,
                 meal_type=meal_type,
                 recipe_id=recipe_id,
+                servings=max(1, int(servings)),
             )

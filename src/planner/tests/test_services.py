@@ -21,7 +21,6 @@ from planner.services import (
     get_or_create_first_menu,
 )
 from planner.services_friends import (
-    can_friend_edit_menus,
     can_friend_edit_recipes,
     get_editable_owner_ids,
     get_friend_request_between,
@@ -85,8 +84,8 @@ class GetMenuSlotsTests(TestCase):
             menu=self.menu, day_of_week=6, meal_type=3, recipe=self.recipe
         )
         data = get_menu_slots(self.menu)
-        self.assertEqual(data["0-0"], [self.recipe.id])
-        self.assertEqual(data["6-3"], [self.recipe.id])
+        self.assertEqual(data["0-0"], [{"recipe_id": self.recipe.id, "servings": 1}])
+        self.assertEqual(data["6-3"], [{"recipe_id": self.recipe.id, "servings": 1}])
         self.assertEqual(data["0-1"], [])
 
     def test_slot_with_null_recipe(self):
@@ -415,36 +414,6 @@ class CanFriendEditRecipesTests(TestCase):
             can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
         )
         self.assertFalse(can_friend_edit_recipes(self.alice, self.bob))
-
-
-class CanFriendEditMenusTests(TestCase):
-    """Test can_friend_edit_menus permission check (shares same flag as recipes)."""
-
-    def setUp(self):
-        self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
-        )
-        self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
-        )
-
-    def test_true_when_accepted(self):
-        FriendRequest.objects.create(
-            from_user=self.alice,
-            to_user=self.bob,
-            status=FriendRequest.STATUS_ACCEPTED,
-            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_ACCEPTED,
-        )
-        self.assertTrue(can_friend_edit_menus(self.alice, self.bob))
-
-    def test_false_when_none(self):
-        FriendRequest.objects.create(
-            from_user=self.alice,
-            to_user=self.bob,
-            status=FriendRequest.STATUS_ACCEPTED,
-            can_edit_recipes_status=FriendRequest.EDIT_RECIPES_NONE,
-        )
-        self.assertFalse(can_friend_edit_menus(self.alice, self.bob))
 
 
 class GetFriendRequestBetweenTests(TestCase):

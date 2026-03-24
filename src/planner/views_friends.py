@@ -3,29 +3,21 @@
 import logging
 
 from django.db import models
-from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from planner.models import FriendRequest, Menu, MenuSlot, Recipe, UserFriendCode
+from planner.models import FriendRequest, UserFriendCode
 from planner.serializers import (
     EditRecipesRequestSerializer,
     FriendRequestSerializer,
     FriendSerializer,
-    MenuItemSerializer,
-    MenuSlotsSerializer,
-    ShoppingListRequestSerializer,
     UserFriendCodeSerializer,
 )
-from planner.services import calculate_shopping_list, get_menu_slots
-from planner.services_friends import (
-    can_friend_edit_menus,
-    get_friend_request_between,
-    get_friend_user_or_404,
-)
+from planner.services import revoke_all_shares_between
+from planner.services_friends import get_friend_request_between
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +111,16 @@ class FriendRemoveView(APIView):
             models.Q(from_user=request.user, to_user_id=user_id)
             | models.Q(from_user_id=user_id, to_user=request.user)
         )
-        friend_request = qs.first()
+        friend_request = qs.select_related("from_user", "to_user").first()
         if not friend_request:
             raise ValidationError("Пользователь не является вашим другом")
+
+        other_user = (
+            friend_request.to_user
+            if friend_request.from_user_id == request.user.id
+            else friend_request.from_user
+        )
+        revoke_all_shares_between(request.user, other_user)
 
         friend_request.status = FriendRequest.STATUS_REMOVED
         friend_request.save(update_fields=["status"])
@@ -331,151 +330,3 @@ class EditRecipesRequestViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             and friend_request.can_edit_recipes_requested_by_id != user.id
             and user.id in (friend_request.from_user_id, friend_request.to_user_id)
         )
-
-
-class FriendMenuView(APIView):
-    """Read-only view of a friend's first (oldest) weekly menu."""
-
-    def get(self, request, user_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        friend_menu = Menu.objects.filter(user=friend_user).first()
-        if not friend_menu:
-            return Response({"menu": {}, "recipes": []})
-        menu_data = get_menu_slots(friend_menu)
-        recipe_ids = {rid for ids in menu_data.values() for rid in ids}
-        recipes_qs = Recipe.objects.filter(pk__in=recipe_ids)
-        recipes_list = [
-            {"id": r.id, "name": r.name, "total_calories": r.total_calories or 0}
-            for r in recipes_qs
-        ]
-        return Response({"menu": menu_data, "recipes": recipes_list})
-
-
-class FriendMenuListCreateView(APIView):
-    """List all menus for a friend or create a new one (requires edit permission)."""
-
-    def get(self, request, user_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        menus = Menu.objects.filter(user=friend_user)
-        serializer = MenuItemSerializer(menus, many=True)
-        can_edit = can_friend_edit_menus(request.user, friend_user)
-        return Response({"menus": serializer.data, "can_edit": can_edit})
-
-    def post(self, request, user_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        if not can_friend_edit_menus(request.user, friend_user):
-            return Response(
-                {"error": "Нет прав на редактирование меню друга"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        name = (request.data or {}).get("name", "Меню на неделю")
-        menu = Menu.objects.create(user=friend_user, name=name)
-        serializer = MenuItemSerializer(menu)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-class FriendMenuDetailView(APIView):
-    """Get slots, update slots, rename, or delete a friend's specific menu."""
-
-    def get(self, request, user_id, menu_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
-        serializer = MenuSlotsSerializer(instance=menu, context={"request": request})
-        return Response(serializer.data)
-
-    def put(self, request, user_id, menu_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        if not can_friend_edit_menus(request.user, friend_user):
-            return Response(
-                {"error": "Нет прав на редактирование меню друга"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
-        body = request.data
-        if not isinstance(body, dict):
-            return Response(
-                {"error": "Body must be an object"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        _replace_friend_menu_slots(menu, body)
-        return Response({"status": "ok"})
-
-    def patch(self, request, user_id, menu_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        if not can_friend_edit_menus(request.user, friend_user):
-            return Response(
-                {"error": "Нет прав на редактирование меню друга"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
-        name = (request.data or {}).get("name")
-        if name:
-            menu.name = name
-            menu.save(update_fields=["name"])
-        serializer = MenuItemSerializer(menu)
-        return Response(serializer.data)
-
-    def delete(self, request, user_id, menu_id):
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        if not can_friend_edit_menus(request.user, friend_user):
-            return Response(
-                {"error": "Нет прав на редактирование меню друга"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
-        menu.delete()
-        return Response({"status": "ok"})
-
-
-def _replace_friend_menu_slots(menu, body):
-    """Delete existing slots and recreate from request body dict.
-
-    Values can be a single recipe_id (legacy) or a list of recipe_ids.
-    """
-    MenuSlot.objects.filter(menu=menu).delete()
-    valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
-    for key, value in body.items():
-        try:
-            day_str, meal_str = key.split("-")
-            day_of_week = int(day_str)
-            meal_type = int(meal_str)
-        except (ValueError, AttributeError):
-            continue
-        if day_of_week not in range(7) or meal_type not in range(4):
-            continue
-        recipe_ids = value if isinstance(value, list) else [value]
-        for recipe_id in recipe_ids:
-            if recipe_id is None:
-                continue
-            if recipe_id not in valid_recipe_ids:
-                continue
-            MenuSlot.objects.create(
-                menu=menu,
-                day_of_week=day_of_week,
-                meal_type=meal_type,
-                recipe_id=recipe_id,
-            )
-
-
-class FriendShoppingListView(APIView):
-    """Generate shopping list for a friend's menu. Accepts optional menu_id."""
-
-    def post(self, request, user_id):
-        serializer = ShoppingListRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        friend_user = get_friend_user_or_404(request.user, user_id)
-        menu_id = request.data.get("menu_id")
-        if menu_id:
-            friend_menu = get_object_or_404(Menu, pk=menu_id, user=friend_user)
-        else:
-            friend_menu = Menu.objects.filter(user=friend_user).first()
-        if not friend_menu:
-            return Response([])
-        result = calculate_shopping_list(
-            friend_menu,
-            data["start_date"],
-            data["end_date"],
-            data.get("people_count", 2),
-        )
-        return Response(result)

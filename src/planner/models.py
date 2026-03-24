@@ -151,7 +151,6 @@ class Menu(models.Model):
         related_name="menus",
     )
     name = models.CharField(max_length=200, default="Меню на неделю")
-    is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -194,12 +193,67 @@ class MenuSlot(models.Model):
         blank=True,
         related_name="menu_slots",
     )
+    servings = models.PositiveIntegerField(default=1)
 
     class Meta:
         ordering = ["menu", "day_of_week", "meal_type"]
 
     def __str__(self):
         return f"{self.get_day_of_week_display()} {self.get_meal_type_display()}"
+
+
+class MenuShare(models.Model):
+    """Shares a menu with another user, granting read or edit access."""
+
+    PERMISSION_READ = "read"
+    PERMISSION_EDIT = "edit"
+    PERMISSION_CHOICES = [
+        (PERMISSION_READ, "read"),
+        (PERMISSION_EDIT, "edit"),
+    ]
+
+    menu = models.ForeignKey(
+        Menu,
+        on_delete=models.CASCADE,
+        related_name="shares",
+    )
+    shared_with = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="shared_menus",
+    )
+    permission = models.CharField(max_length=10, choices=PERMISSION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["menu", "shared_with"],
+                name="unique_menu_share",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.menu} → {self.shared_with_id} ({self.permission})"
+
+
+class UserActiveMenu(models.Model):
+    """Tracks which menu is the user's currently active one."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="active_menu_setting",
+    )
+    menu = models.ForeignKey(
+        Menu,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+
+    def __str__(self):
+        return f"{self.user_id} → menu {self.menu_id}"
 
 
 class UserFriendCode(models.Model):

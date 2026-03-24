@@ -519,8 +519,8 @@ class MenuApiTests(ApiTestBase):
         response2 = self.client.get("/api/menu/")
         self.assertEqual(response2.status_code, 200)
         data = response2.json()
-        self.assertEqual(data["0-0"], [recipe.id])
-        self.assertEqual(data["1-1"], [recipe.id])
+        self.assertEqual(data["0-0"], [{"recipe_id": recipe.id, "servings": 1}])
+        self.assertEqual(data["1-1"], [{"recipe_id": recipe.id, "servings": 1}])
         self.assertEqual(data["0-1"], [])
 
 

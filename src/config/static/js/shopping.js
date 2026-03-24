@@ -16,23 +16,13 @@ async function generateShoppingList() {
         return;
     }
 
-    var url;
     var body = { start_date: startDate, end_date: endDate, people_count: peopleCount };
-
-    if (currentMenuOwnerId !== null) {
-        url = '/api/friends/' + currentMenuOwnerId + '/shopping-list/';
-        if (activeFriendMenuId) {
-            body.menu_id = activeFriendMenuId;
-        }
-    } else {
-        url = '/api/shopping-list/';
-        if (activeMenuId) {
-            body.menu_id = activeMenuId;
-        }
+    if (activeMenuId) {
+        body.menu_id = activeMenuId;
     }
 
     try {
-        var items = await apiFetch(url, { method: 'POST', body: body });
+        var items = await apiFetch('/api/shopping-list/', { method: 'POST', body: body });
 
         var container = document.getElementById('shoppingList');
         if (items.length === 0) {

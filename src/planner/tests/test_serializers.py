@@ -322,17 +322,30 @@ class RecipeCreateUpdateSerializerTests(TestCase):
 class MenuItemSerializerTests(TestCase):
     """Test MenuItemSerializer fields."""
 
-    def test_serializes_menu_fields(self):
-        user = User.objects.create_user(
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = User.objects.create_user(
             username="alice", password="pass", email="alice@test.com"
         )
-        menu = Menu.objects.create(user=user, name="Weekly", is_primary=True)
-        serializer = MenuItemSerializer(menu)
+        self.request = self.factory.get("/")
+        self.request.user = self.user
+
+    def test_serializes_menu_fields(self):
+        menu = Menu.objects.create(user=self.user, name="Weekly")
+        serializer = MenuItemSerializer(menu, context={"request": self.request})
         data = serializer.data
         self.assertEqual(data["name"], "Weekly")
-        self.assertTrue(data["is_primary"])
         self.assertIn("id", data)
         self.assertIn("created_at", data)
+        self.assertIn("is_active", data)
+        self.assertIn("permission", data)
+        self.assertIn("owner", data)
+
+    def test_own_menu_owner_is_none(self):
+        menu = Menu.objects.create(user=self.user, name="Mine")
+        serializer = MenuItemSerializer(menu, context={"request": self.request})
+        self.assertIsNone(serializer.data["owner"])
+        self.assertIsNone(serializer.data["permission"])
 
 
 class MenuSlotsSerializerTests(TestCase):
@@ -352,15 +365,18 @@ class MenuSlotsSerializerTests(TestCase):
             for meal in range(4):
                 self.assertEqual(data[f"{day}-{meal}"], [])
 
-    def test_filled_slot_returns_recipe_id(self):
+    def test_filled_slot_returns_recipe_entry(self):
         recipe = Recipe.objects.create(
             user=self.user, name="R", description="", instructions=""
         )
         MenuSlot.objects.create(
-            menu=self.menu, day_of_week=3, meal_type=2, recipe=recipe
+            menu=self.menu, day_of_week=3, meal_type=2, recipe=recipe, servings=2
         )
         serializer = MenuSlotsSerializer(instance=self.menu)
-        self.assertEqual(serializer.data["3-2"], [recipe.id])
+        self.assertEqual(
+            serializer.data["3-2"],
+            [{"recipe_id": recipe.id, "servings": 2}],
+        )
 
 
 class ShoppingListRequestSerializerTests(TestCase):
