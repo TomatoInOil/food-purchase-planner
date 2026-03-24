@@ -283,7 +283,8 @@ function _renderShareModal(menuId, shares) {
 
     var modal = document.createElement('div');
     modal.id = 'menuShareModal';
-    modal.className = 'modal-overlay active';
+    // Reuse the existing modal styles from `recipe_manager.css` (`.modal`).
+    modal.className = 'modal active';
 
     var content = document.createElement('div');
     content.className = 'modal-content';
