@@ -38,6 +38,7 @@ function _initEmptyWeekMenu() {
 
 function renderMenuSidebar() {
     var list = document.getElementById('menuSidebarList');
+    var createBtn = document.getElementById('menuSidebarCreateBtn');
     if (!list) return;
     list.innerHTML = '';
 
@@ -45,21 +46,29 @@ function renderMenuSidebar() {
     var sharedMenus = menus.filter(function (m) { return !_isOwnMenu(m); });
 
     if (ownMenus.length > 0) {
-        _renderMenuGroup(list, 'Мои меню', ownMenus, true);
+        _renderMenuGroup(list, ownMenus, true, false);
+    }
+    if (createBtn) {
+        list.appendChild(createBtn);
     }
     if (sharedMenus.length > 0) {
-        _renderMenuGroup(list, 'Доступные меню', sharedMenus, false);
+        if (ownMenus.length > 0 || createBtn) {
+            _renderMenuGroupDivider(list);
+        }
+        _renderMenuGroup(list, sharedMenus, false, true, 'Доступные меню');
     }
 
     updateActiveMenuTitle();
     updateMenuSidebarVisibility();
 }
 
-function _renderMenuGroup(container, title, menuList, isOwn) {
-    var header = document.createElement('div');
-    header.className = 'menu-sidebar-group-title';
-    header.textContent = title;
-    container.appendChild(header);
+function _renderMenuGroup(container, menuList, isOwn, renderHeading, headingText) {
+    if (renderHeading) {
+        var heading = document.createElement('h3');
+        heading.className = 'menu-sidebar-group-heading';
+        heading.textContent = headingText;
+        container.appendChild(heading);
+    }
 
     menuList.forEach(function (m) {
         var item = document.createElement('div');
@@ -118,6 +127,12 @@ function _renderMenuGroup(container, title, menuList, isOwn) {
         item.appendChild(actions);
         container.appendChild(item);
     });
+}
+
+function _renderMenuGroupDivider(container) {
+    var divider = document.createElement('div');
+    divider.className = 'menu-sidebar-group-divider';
+    container.appendChild(divider);
 }
 
 function updateActiveMenuTitle() {
@@ -299,11 +314,13 @@ function _renderShareModal(menuId, shares) {
         shares.forEach(function (s) {
             var row = document.createElement('div');
             row.className = 'share-row';
-            row.innerHTML = '<span>' + s.shared_with.username + ' (' + s.permission + ')</span>';
+            row.innerHTML = '<span class="share-row-label">' + s.shared_with.username + ' (' + s.permission + ')</span>';
 
             var revokeBtn = document.createElement('button');
-            revokeBtn.className = 'btn btn-danger btn-small';
-            revokeBtn.textContent = 'Убрать';
+            revokeBtn.type = 'button';
+            revokeBtn.className = 'btn-icon btn-remove-recipe';
+            revokeBtn.title = 'Убрать доступ';
+            revokeBtn.textContent = '\u2715';
             revokeBtn.onclick = function () { revokeShare(menuId, s.id); };
             row.appendChild(revokeBtn);
             list.appendChild(row);
