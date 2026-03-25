@@ -519,8 +519,12 @@ class MenuApiTests(ApiTestBase):
         response2 = self.client.get("/api/menu/")
         self.assertEqual(response2.status_code, 200)
         data = response2.json()
-        self.assertEqual(data["0-0"], [{"recipe_id": recipe.id, "servings": 1}])
-        self.assertEqual(data["1-1"], [{"recipe_id": recipe.id, "servings": 1}])
+        self.assertEqual(
+            data["0-0"], [{"recipe_id": recipe.id, "servings": 1, "assignments": []}]
+        )
+        self.assertEqual(
+            data["1-1"], [{"recipe_id": recipe.id, "servings": 1, "assignments": []}]
+        )
         self.assertEqual(data["0-1"], [])
 
 
@@ -575,8 +579,12 @@ class MultiMenuApiTests(ApiTestBase):
         self.assertEqual(response.status_code, 200)
         response2 = self.client.get(f"/api/menus/{menu.id}/")
         data = response2.json()
-        self.assertEqual(data["0-0"], [{"recipe_id": recipe.id, "servings": 1}])
-        self.assertEqual(data["2-1"], [{"recipe_id": recipe.id, "servings": 1}])
+        self.assertEqual(
+            data["0-0"], [{"recipe_id": recipe.id, "servings": 1, "assignments": []}]
+        )
+        self.assertEqual(
+            data["2-1"], [{"recipe_id": recipe.id, "servings": 1, "assignments": []}]
+        )
         self.assertEqual(data["1-0"], [])
 
     def test_menu_detail_patch_rename(self):
@@ -618,7 +626,9 @@ class MultiMenuApiTests(ApiTestBase):
         )
         data1 = self.client.get(f"/api/menus/{menu1.id}/").json()
         data2 = self.client.get(f"/api/menus/{menu2.id}/").json()
-        self.assertEqual(data1["0-0"], [{"recipe_id": recipe.id, "servings": 1}])
+        self.assertEqual(
+            data1["0-0"], [{"recipe_id": recipe.id, "servings": 1, "assignments": []}]
+        )
         self.assertEqual(data2["0-0"], [])
 
 

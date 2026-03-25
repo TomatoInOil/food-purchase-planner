@@ -202,6 +202,24 @@ class MenuSlot(models.Model):
         return f"{self.get_day_of_week_display()} {self.get_meal_type_display()}"
 
 
+class MenuSlotAssignment(models.Model):
+    """Assigns a specific serving of a menu slot to a user (menu member)."""
+
+    menu_slot = models.ForeignKey(
+        MenuSlot,
+        on_delete=models.CASCADE,
+        related_name="assignments",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="menu_slot_assignments",
+    )
+
+    class Meta:
+        ordering = ["pk"]
+
+
 class MenuShare(models.Model):
     """Shares a menu with another user, granting read or edit access."""
 

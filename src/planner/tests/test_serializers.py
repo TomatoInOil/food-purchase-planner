@@ -375,7 +375,7 @@ class MenuSlotsSerializerTests(TestCase):
         serializer = MenuSlotsSerializer(instance=self.menu)
         self.assertEqual(
             serializer.data["3-2"],
-            [{"recipe_id": recipe.id, "servings": 2}],
+            [{"recipe_id": recipe.id, "servings": 2, "assignments": []}],
         )
 
 

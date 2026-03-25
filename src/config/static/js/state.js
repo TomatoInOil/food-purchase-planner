@@ -10,3 +10,4 @@ let editingIngredientId = null;
 let menus = [];
 let activeMenuId = null;
 let recipeCategories = [];
+let menuMembers = [];

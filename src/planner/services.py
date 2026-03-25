@@ -5,7 +5,14 @@ from datetime import timedelta
 
 from django.db import models
 
-from planner.models import Menu, MenuShare, MenuSlot, RecipeIngredient, UserActiveMenu
+from planner.models import (
+    Menu,
+    MenuShare,
+    MenuSlot,
+    MenuSlotAssignment,
+    RecipeIngredient,
+    UserActiveMenu,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +78,23 @@ def get_menu_participants_count(menu):
     return 1 + menu.shares.count()
 
 
+def get_menu_members(menu):
+    """Return list of menu members (owner + editors) as [{id, username}, ...]."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    owner = User.objects.filter(pk=menu.user_id).values("id", "username").first()
+    members = [owner] if owner else []
+    editor_shares = menu.shares.filter(
+        permission=MenuShare.PERMISSION_EDIT
+    ).select_related("shared_with")
+    for share in editor_shares:
+        members.append(
+            {"id": share.shared_with.id, "username": share.shared_with.username}
+        )
+    return members
+
+
 def get_or_create_first_menu(user):
     """Return the user's first (oldest) menu, creating a default one if none exists."""
     menu = Menu.objects.filter(user=user).first()
@@ -111,24 +135,34 @@ def get_menu_for_user(user):
 
 
 def duplicate_menu(menu):
-    """Create a copy of the menu with all its slots. Returns the new menu."""
+    """Create a copy of the menu with all its slots, shares, and assignments."""
     new_menu = Menu.objects.create(
         user=menu.user,
         name=f"{menu.name} — копия",
     )
-    slots = MenuSlot.objects.filter(menu=menu)
-    MenuSlot.objects.bulk_create(
-        [
-            MenuSlot(
-                menu=new_menu,
-                day_of_week=s.day_of_week,
-                meal_type=s.meal_type,
-                recipe=s.recipe,
-                servings=s.servings,
+    for share in menu.shares.all():
+        MenuShare.objects.create(
+            menu=new_menu,
+            shared_with=share.shared_with,
+            permission=share.permission,
+        )
+    old_slots = MenuSlot.objects.filter(menu=menu).prefetch_related("assignments")
+    for old_slot in old_slots:
+        new_slot = MenuSlot.objects.create(
+            menu=new_menu,
+            day_of_week=old_slot.day_of_week,
+            meal_type=old_slot.meal_type,
+            recipe=old_slot.recipe,
+            servings=old_slot.servings,
+        )
+        old_assignments = list(old_slot.assignments.all())
+        if old_assignments:
+            MenuSlotAssignment.objects.bulk_create(
+                [
+                    MenuSlotAssignment(menu_slot=new_slot, user=a.user)
+                    for a in old_assignments
+                ]
             )
-            for s in slots
-        ]
-    )
     return new_menu
 
 
