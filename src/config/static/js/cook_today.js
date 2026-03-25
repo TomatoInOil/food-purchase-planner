@@ -54,9 +54,12 @@
 
         MEAL_NAMES.forEach(function (mealName, mealIndex) {
             var key = todayIndex + '-' + mealIndex;
-            var recipeIds = menuData[key] || [];
-            var mealRecipes = recipeIds
-                .map(function (id) { return recipeMap[id]; })
+            var slotEntries = menuData[key] || [];
+            var mealRecipes = slotEntries
+                .map(function (entry) {
+                    var id = typeof entry === 'object' ? entry.recipe_id : entry;
+                    return recipeMap[id];
+                })
                 .filter(Boolean);
 
             html += '<div class="meal-section">';
@@ -160,8 +163,9 @@ function updateCookTodayPortions(recipeId, delta) {
 function renderDayTotals(menuData, recipeMap, dayIndex) {
     var totalCal = 0, totalProt = 0, totalFat = 0, totalCarbs = 0;
     for (var m = 0; m < 4; m++) {
-        var ids = menuData[dayIndex + '-' + m] || [];
-        ids.forEach(function (id) {
+        var entries = menuData[dayIndex + '-' + m] || [];
+        entries.forEach(function (entry) {
+            var id = typeof entry === 'object' ? entry.recipe_id : entry;
             var r = recipeMap[id];
             if (r) {
                 totalCal += r.total_calories || 0;
