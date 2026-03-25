@@ -24,8 +24,12 @@ async function init() {
         }
         activeMenuId = _findActiveOrFirstId(menus);
 
-        const menuData = await apiFetch(`/api/menus/${activeMenuId}/`);
+        const [menuData, membersData] = await Promise.all([
+            apiFetch(`/api/menus/${activeMenuId}/`),
+            apiFetch(`/api/menus/${activeMenuId}/members/`)
+        ]);
         weekMenu = menuData;
+        menuMembers = membersData;
 
         renderRecipes();
         populateCategorySelects();

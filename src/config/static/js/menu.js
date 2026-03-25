@@ -169,9 +169,13 @@ function toggleMenuSidebar() {
 
 async function selectMenu(menuId) {
     try {
-        var menuData = await apiFetch('/api/menus/' + menuId + '/');
+        var results = await Promise.all([
+            apiFetch('/api/menus/' + menuId + '/'),
+            apiFetch('/api/menus/' + menuId + '/members/')
+        ]);
         activeMenuId = menuId;
-        weekMenu = menuData;
+        weekMenu = results[0];
+        menuMembers = results[1];
         renderMenuSidebar();
         generateWeekPlanner();
         updateShoppingOwnerLabel();
@@ -462,6 +466,169 @@ function getRecipeSource() {
     return recipes;
 }
 
+// --- Assignment helpers ---
+
+var _ASSIGNMENT_COLORS = [
+    '#2ecc71', '#3498db', '#e74c3c', '#f39c12', '#9b59b6',
+    '#1abc9c', '#e67e22', '#2980b9', '#c0392b', '#8e44ad'
+];
+
+function _userColor(userId) {
+    return _ASSIGNMENT_COLORS[userId % _ASSIGNMENT_COLORS.length];
+}
+
+function _userInitial(userId) {
+    var member = menuMembers.find(function (m) { return m.id === userId; });
+    return member ? member.username.charAt(0).toUpperCase() : '?';
+}
+
+function _buildAssignmentCircles(dayIndex, mealIndex, slotIndex, servings, assignments, isReadOnly) {
+    if (menuMembers.length <= 1) return '';
+    var html = '<span class="assignment-circles">';
+    for (var i = 0; i < servings; i++) {
+        var userId = assignments && assignments[i] ? assignments[i] : null;
+        if (userId) {
+            var color = _userColor(userId);
+            var initial = _userInitial(userId);
+            html += '<span class="assignment-circle assignment-circle-filled" ' +
+                'style="background:' + color + '"' +
+                (isReadOnly ? '' : ' onclick="openAssignmentDropdown(event,' + dayIndex + ',' + mealIndex + ',' + slotIndex + ',' + i + ')"') +
+                ' title="' + (menuMembers.find(function(m){return m.id===userId;}) || {username:'?'}).username + '">' +
+                initial + '</span>';
+        } else {
+            html += '<span class="assignment-circle assignment-circle-empty"' +
+                (isReadOnly ? '' : ' onclick="openAssignmentDropdown(event,' + dayIndex + ',' + mealIndex + ',' + slotIndex + ',' + i + ')"') +
+                '>?</span>';
+        }
+    }
+    html += '</span>';
+    return html;
+}
+
+function openAssignmentDropdown(event, day, meal, slot, servingIndex) {
+    event.stopPropagation();
+    var existing = document.getElementById('assignmentDropdown');
+    if (existing) existing.remove();
+
+    var dropdown = document.createElement('div');
+    dropdown.id = 'assignmentDropdown';
+    dropdown.className = 'assignment-dropdown';
+    dropdown.style.left = event.clientX + 'px';
+    dropdown.style.top = event.clientY + 'px';
+
+    menuMembers.forEach(function (m) {
+        var item = document.createElement('div');
+        item.className = 'assignment-dropdown-item';
+        item.innerHTML = '<span class="assignment-circle assignment-circle-filled" style="background:' +
+            _userColor(m.id) + '">' + m.username.charAt(0).toUpperCase() + '</span> ' + m.username;
+        item.onclick = function () { setAssignment(day, meal, slot, servingIndex, m.id); dropdown.remove(); };
+        dropdown.appendChild(item);
+    });
+
+    var removeItem = document.createElement('div');
+    removeItem.className = 'assignment-dropdown-item';
+    removeItem.innerHTML = '<span class="assignment-circle assignment-circle-empty">?</span> Убрать';
+    removeItem.onclick = function () { setAssignment(day, meal, slot, servingIndex, null); dropdown.remove(); };
+    dropdown.appendChild(removeItem);
+
+    document.body.appendChild(dropdown);
+    document.addEventListener('click', function handler() {
+        if (document.getElementById('assignmentDropdown')) {
+            dropdown.remove();
+        }
+        document.removeEventListener('click', handler);
+    }, { once: true });
+}
+
+function setAssignment(day, meal, slot, servingIndex, userId) {
+    var key = day + '-' + meal;
+    var entries = weekMenu[key] || [];
+    var entry = entries[slot];
+    if (!entry) return;
+    if (typeof entry !== 'object') {
+        entry = { recipe_id: entry, servings: 1, assignments: [] };
+        entries[slot] = entry;
+    }
+    if (!entry.assignments) entry.assignments = [];
+    while (entry.assignments.length < entry.servings) {
+        entry.assignments.push(null);
+    }
+    entry.assignments[servingIndex] = userId;
+    generateWeekPlanner();
+}
+
+function getDayNutritionByPerson(dayIndex) {
+    var source = getRecipeSource();
+    var byPerson = {};
+    var unassigned = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+    var hasAnyAssignment = false;
+
+    for (var m = 0; m < 4; m++) {
+        var slotEntries = weekMenu[dayIndex + '-' + m] || [];
+        slotEntries.forEach(function (entry) {
+            if (typeof entry !== 'object') return;
+            var recipeId = entry.recipe_id;
+            var servings = entry.servings || 1;
+            var assignments = entry.assignments || [];
+            var r = source.find(function (x) { return x.id === recipeId; });
+            if (!r) return;
+
+            for (var i = 0; i < servings; i++) {
+                var uid = assignments[i] || null;
+                var cal = r.total_calories || 0;
+                var pro = r.total_protein || 0;
+                var fat = r.total_fat || 0;
+                var carb = r.total_carbs || 0;
+                if (uid) {
+                    hasAnyAssignment = true;
+                    if (!byPerson[uid]) {
+                        var member = menuMembers.find(function(mm){return mm.id===uid;});
+                        byPerson[uid] = { username: member ? member.username : '?', calories: 0, protein: 0, fat: 0, carbs: 0 };
+                    }
+                    byPerson[uid].calories += cal;
+                    byPerson[uid].protein += pro;
+                    byPerson[uid].fat += fat;
+                    byPerson[uid].carbs += carb;
+                } else {
+                    unassigned.calories += cal;
+                    unassigned.protein += pro;
+                    unassigned.fat += fat;
+                    unassigned.carbs += carb;
+                }
+            }
+        });
+    }
+    return { byPerson: byPerson, unassigned: unassigned, hasAnyAssignment: hasAnyAssignment };
+}
+
+function formatDaySummaryByPerson(dayIndex) {
+    if (menuMembers.length <= 1) {
+        return formatDaySummary(getDayNutritionTotals(dayIndex));
+    }
+    var data = getDayNutritionByPerson(dayIndex);
+    if (!data.hasAnyAssignment) {
+        return formatDaySummary(getDayNutritionTotals(dayIndex));
+    }
+    var lines = [];
+    Object.keys(data.byPerson).forEach(function (uid) {
+        var p = data.byPerson[uid];
+        var color = _userColor(parseInt(uid));
+        lines.push('<div class="day-summary-person">' +
+            '<span class="assignment-circle assignment-circle-filled" style="background:' + color + '">' +
+            p.username.charAt(0).toUpperCase() + '</span> ' +
+            Math.round(p.calories) + ' ккал \u00B7 Б ' + Math.round(p.protein) +
+            ' \u00B7 Ж ' + Math.round(p.fat) + ' \u00B7 У ' + Math.round(p.carbs) + '</div>');
+    });
+    var u = data.unassigned;
+    if (u.calories > 0 || u.protein > 0 || u.fat > 0 || u.carbs > 0) {
+        lines.push('<div class="day-summary-person">' +
+            '<span class="assignment-circle assignment-circle-empty">?</span> ' +
+            Math.round(u.calories) + ' ккал \u00B7 Б ' + Math.round(u.protein) +
+            ' \u00B7 Ж ' + Math.round(u.fat) + ' \u00B7 У ' + Math.round(u.carbs) + '</div>');
+    }
+    return lines.length > 0 ? lines.join('') : '\u2014';
+}
+
 function getDayNutritionTotals(dayIndex) {
     var source = getRecipeSource();
     var calories = 0, protein = 0, fat = 0, carbs = 0;
@@ -492,8 +659,9 @@ function formatDaySummary(totals) {
 function _buildRecipeSelect(dayIndex, mealIndex, entry, isReadOnly, recipeSource, slotIndex) {
     var selectedId = typeof entry === 'object' && entry ? entry.recipe_id : entry;
     var servings = typeof entry === 'object' && entry ? (entry.servings || 1) : 1;
+    var assignments = typeof entry === 'object' && entry ? (entry.assignments || []) : [];
 
-    var selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenu()"';
+    var selectAttrs = isReadOnly ? 'disabled' : 'onchange="updateWeekMenuAndRerender()"';
     var options = recipeSource.map(function (r) {
         return '<option value="' + r.id + '"' + (selectedId == r.id ? ' selected' : '') + '>' + r.name + '</option>';
     }).join('');
@@ -503,10 +671,12 @@ function _buildRecipeSelect(dayIndex, mealIndex, entry, isReadOnly, recipeSource
         servingsInput = '<input type="number" class="servings-input" data-day="' + dayIndex +
             '" data-meal="' + mealIndex + '" data-slot="' + slotIndex +
             '" min="1" max="99" value="' + servings +
-            '" title="Порций" onchange="updateWeekMenu()">';
+            '" title="Порций" onchange="updateWeekMenuAndRerender()">';
     } else {
         servingsInput = '<span class="servings-display" title="Порций">\u00D7' + servings + '</span>';
     }
+
+    var circlesHtml = selectedId ? _buildAssignmentCircles(dayIndex, mealIndex, slotIndex, servings, assignments, isReadOnly) : '';
 
     var removeBtn = '';
     if (!isReadOnly) {
@@ -515,7 +685,7 @@ function _buildRecipeSelect(dayIndex, mealIndex, entry, isReadOnly, recipeSource
     return '<div class="meal-slot-recipe">' +
         '<select data-day="' + dayIndex + '" data-meal="' + mealIndex + '" ' + selectAttrs + '>' +
         '<option value="">Не выбрано</option>' + options + '</select>' +
-        servingsInput + removeBtn + '</div>';
+        servingsInput + circlesHtml + removeBtn + '</div>';
 }
 
 function generateWeekPlanner() {
@@ -547,14 +717,18 @@ function generateWeekPlanner() {
                 '<div class="meal-slot-recipes">' + selects + '</div>' +
                 addBtn + '</div>';
         }).join('');
+        var summaryHtml = formatDaySummaryByPerson(dayIndex);
         return '<div class="day-card"><h3>' + day + '</h3>' + mealSlots +
-            '<div class="day-summary" data-day-index="' + dayIndex + '">' + formatDaySummary(totals) + '</div></div>';
+            '<div class="day-summary" data-day-index="' + dayIndex + '">' + summaryHtml + '</div></div>';
     }).join('');
     updateSaveClearButtonsState();
 }
 
 function updateWeekMenu() {
     var container = document.getElementById('weekPlanner');
+    var oldMenu = {};
+    Object.keys(weekMenu).forEach(function (k) { oldMenu[k] = weekMenu[k]; });
+
     weekMenu = {};
     for (var d = 0; d < 7; d++) {
         for (var m = 0; m < 4; m++) {
@@ -569,20 +743,32 @@ function updateWeekMenu() {
         var key = day + '-' + meal;
 
         var recipeEls = slotEl.querySelectorAll('.meal-slot-recipe');
-        recipeEls.forEach(function (recipeEl) {
+        recipeEls.forEach(function (recipeEl, idx) {
             var select = recipeEl.querySelector('select');
             var servingsInput = recipeEl.querySelector('.servings-input');
             if (select && select.value) {
+                var recipeId = parseInt(select.value);
                 var servings = servingsInput ? parseInt(servingsInput.value, 10) || 1 : 1;
-                weekMenu[key].push({ recipe_id: parseInt(select.value), servings: servings });
+                var oldEntries = oldMenu[key] || [];
+                var oldEntry = oldEntries[idx];
+                var assignments = [];
+                if (oldEntry && typeof oldEntry === 'object' && oldEntry.recipe_id === recipeId && oldEntry.assignments) {
+                    assignments = oldEntry.assignments.slice(0, servings);
+                }
+                weekMenu[key].push({ recipe_id: recipeId, servings: servings, assignments: assignments });
             }
         });
     });
 
     document.querySelectorAll('#weekPlanner .day-summary').forEach(function (el) {
         var dayIndex = parseInt(el.dataset.dayIndex, 10);
-        el.textContent = formatDaySummary(getDayNutritionTotals(dayIndex));
+        el.innerHTML = formatDaySummaryByPerson(dayIndex);
     });
+}
+
+function updateWeekMenuAndRerender() {
+    updateWeekMenu();
+    generateWeekPlanner();
 }
 
 function addRecipeToSlot(dayIndex, mealIndex) {

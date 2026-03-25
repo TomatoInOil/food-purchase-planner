@@ -9,6 +9,7 @@ from planner.views_api import (
     MenuDetailView,
     MenuDuplicateView,
     MenuListCreateView,
+    MenuMembersView,
     MenuSetActiveView,
     MenuShareDetailView,
     MenuShareListCreateView,
@@ -60,6 +61,11 @@ urlpatterns = [
         "menus/<int:menu_id>/duplicate/",
         MenuDuplicateView.as_view(),
         name="menu-duplicate",
+    ),
+    path(
+        "menus/<int:menu_id>/members/",
+        MenuMembersView.as_view(),
+        name="menu-members",
     ),
     path(
         "menus/<int:menu_id>/shares/",

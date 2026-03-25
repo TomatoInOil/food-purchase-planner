@@ -13,6 +13,7 @@ from planner.models import (
     Ingredient,
     Menu,
     MenuSlot,
+    MenuSlotAssignment,
     Recipe,
     RecipeCategory,
     RecipeIngredient,
@@ -36,6 +37,7 @@ from planner.services import (
     calculate_shopping_list,
     calculate_shopping_list_for_user,
     duplicate_menu,
+    get_menu_members,
     get_menu_with_access,
     get_or_create_first_menu,
     revoke_menu_share,
@@ -420,6 +422,17 @@ class MenuDuplicateView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class MenuMembersView(APIView):
+    """List members (owner + editors) of a menu."""
+
+    def get(self, request, menu_id):
+        menu = get_menu_with_access(menu_id, request.user)
+        if not menu:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        members = get_menu_members(menu)
+        return Response(members)
+
+
 class MenuView(APIView):
     """Legacy endpoint: operates on the user's first (oldest) menu."""
 
@@ -487,12 +500,14 @@ def _replace_menu_slots(menu, body):
     """Delete existing slots and recreate from request body dict.
 
     Supports three value formats per slot key:
-    - New: [{"recipe_id": int, "servings": int}, ...]
+    - New: [{"recipe_id": int, "servings": int, "assignments": [user_id, ...]}, ...]
     - Legacy list: [int, ...]
     - Legacy single: int
     """
     MenuSlot.objects.filter(menu=menu).delete()
     valid_recipe_ids = set(Recipe.objects.values_list("pk", flat=True))
+    valid_user_ids = _get_valid_member_ids(menu)
+    all_assignments = []
     for key, value in body.items():
         try:
             day_str, meal_str = key.split("-")
@@ -509,15 +524,33 @@ def _replace_menu_slots(menu, body):
             if isinstance(item, dict):
                 recipe_id = item.get("recipe_id")
                 servings = item.get("servings", 1)
+                assignments = item.get("assignments", [])
             else:
                 recipe_id = item
                 servings = 1
+                assignments = []
             if recipe_id is None or recipe_id not in valid_recipe_ids:
                 continue
-            MenuSlot.objects.create(
+            clamped_servings = max(1, int(servings))
+            slot = MenuSlot.objects.create(
                 menu=menu,
                 day_of_week=day_of_week,
                 meal_type=meal_type,
                 recipe_id=recipe_id,
-                servings=max(1, int(servings)),
+                servings=clamped_servings,
             )
+            for user_id in assignments[:clamped_servings]:
+                if user_id in valid_user_ids:
+                    all_assignments.append(
+                        MenuSlotAssignment(menu_slot=slot, user_id=user_id)
+                    )
+    if all_assignments:
+        MenuSlotAssignment.objects.bulk_create(all_assignments)
+
+
+def _get_valid_member_ids(menu):
+    """Return set of user IDs who are members of this menu (owner + editors)."""
+    member_ids = {menu.user_id}
+    for share in menu.shares.filter(permission="edit"):
+        member_ids.add(share.shared_with_id)
+    return member_ids

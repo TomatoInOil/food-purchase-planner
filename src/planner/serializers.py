@@ -10,6 +10,7 @@ from planner.models import (
     Menu,
     MenuShare,
     MenuSlot,
+    MenuSlotAssignment,
     Recipe,
     RecipeCategory,
     RecipeIngredient,
@@ -298,16 +299,26 @@ def _menu_slot_key(day_of_week, meal_type):
 
 
 class MenuSlotsSerializer(serializers.Serializer):
-    """Read-only: represents a Menu's slots as {day-meal: [{recipe_id, servings}, ...]}."""
+    """Read-only: represents a Menu's slots as {day-meal: [{recipe_id, servings, assignments}, ...]}."""
 
     def to_representation(self, instance):
-        slots = MenuSlot.objects.filter(menu=instance).select_related("recipe")
+        slots = list(MenuSlot.objects.filter(menu=instance).select_related("recipe"))
+        slot_ids = [s.pk for s in slots]
+        assignments_by_slot: dict[int, list[int]] = {}
+        for a in MenuSlotAssignment.objects.filter(menu_slot_id__in=slot_ids).order_by(
+            "pk"
+        ):
+            assignments_by_slot.setdefault(a.menu_slot_id, []).append(a.user_id)
         data: dict[str, list[dict]] = {}
         for s in slots:
             key = f"{s.day_of_week}-{s.meal_type}"
             if s.recipe_id is not None:
                 data.setdefault(key, []).append(
-                    {"recipe_id": s.recipe_id, "servings": s.servings}
+                    {
+                        "recipe_id": s.recipe_id,
+                        "servings": s.servings,
+                        "assignments": assignments_by_slot.get(s.pk, []),
+                    }
                 )
         for day in range(7):
             for meal in range(4):
