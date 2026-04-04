@@ -15,6 +15,7 @@ from pathlib import Path
 
 import sentry_sdk
 from dotenv import load_dotenv
+from logtide_sdk import ClientOptions, LogTideClient, LogTideHandler
 from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -179,6 +180,21 @@ LOGOUT_REDIRECT_URL = "/login/"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 
+# LogTide structured logging
+_logtide_api_url = os.environ.get("LOGTIDE_API_URL", "")
+_logtide_api_key = os.environ.get("LOGTIDE_API_KEY", "")
+LOGTIDE_SERVICE_NAME = os.environ.get("LOGTIDE_SERVICE_NAME", "food-purchase-planner")
+
+LOGTIDE_CLIENT: LogTideClient | None = None
+if _logtide_api_url and _logtide_api_key:
+    LOGTIDE_CLIENT = LogTideClient(
+        ClientOptions(
+            api_url=_logtide_api_url,
+            api_key=_logtide_api_key,
+        )
+    )
+    MIDDLEWARE.insert(1, "logtide_sdk.middleware.LogTideDjangoMiddleware")
+
 # Logging
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
@@ -236,3 +252,13 @@ LOGGING = {
         },
     },
 }
+
+# Attach LogTide handler to root logger so all app loggers forward to LogTide
+if LOGTIDE_CLIENT:
+    import logging
+
+    _logtide_handler = LogTideHandler(
+        client=LOGTIDE_CLIENT, service=LOGTIDE_SERVICE_NAME
+    )
+    _logtide_handler.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(_logtide_handler)

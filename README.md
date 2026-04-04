@@ -36,6 +36,22 @@
   - `docker compose exec web python manage.py planner_populate_default_recipes`
 - **Перезапуск:** `docker compose restart web`; полная пересборка: `docker compose up -d --build`.
 
+### LogTide (структурированное логирование)
+
+Проект поддерживает отправку логов в [LogTide](https://logtide.dev/) — self-hosted систему управления логами. Интеграция опциональна и активируется при наличии переменных окружения.
+
+1. Задать переменные в `.env`:
+   ```
+   LOGTIDE_API_URL=http://your-logtide-instance:8080
+   LOGTIDE_API_KEY=lp_your_api_key_here
+   LOGTIDE_SERVICE_NAME=food-purchase-planner   # опционально, по умолчанию food-purchase-planner
+   ```
+2. При запуске приложения автоматически подключаются:
+   - **Django middleware** (`LogTideDjangoMiddleware`) — логирует HTTP-запросы/ответы с длительностью и статус-кодами.
+   - **stdlib logging handler** (`LogTideHandler`) — пересылает в LogTide все логи уровня WARNING и выше из стандартных Python-логгеров.
+
+Если переменные не заданы — SDK не инициализируется, middleware пропускает запросы без обработки.
+
 ## CI/CD (GitHub Actions)
 
 - **CI - lint & tests:** запускается на push/pull request в ветку `master`, проверяет код Ruff и mypy, запускает Django-тесты.
