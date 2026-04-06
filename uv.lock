@@ -237,7 +237,7 @@ requires-dist = [
     { name = "django", specifier = ">=6.0.2" },
     { name = "djangorestframework", specifier = ">=3.16.1" },
     { name = "gunicorn", specifier = ">=25.0.1" },
-    { name = "logtide-sdk", extras = ["django"], specifier = ">=0.8.0" },
+    { name = "logtide-sdk", extras = ["django"], specifier = ">=0.8.5" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.2" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "python-telegram-bot", extras = ["rate-limiter"], specifier = ">=21.0" },
@@ -374,14 +374,14 @@ wheels = [
 
 [[package]]
 name = "logtide-sdk"
-version = "0.8.4"
+version = "0.8.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/12/8d/56ec0b39e7e6945374190b7abdb6c11ee171c3434d35edb6b712d8b9f325/logtide_sdk-0.8.4.tar.gz", hash = "sha256:25d6a175babad442b4d8b2846da2a9f67f4563bd8fb209d102b6769988bdc66b", size = 30469, upload-time = "2026-03-21T22:52:58.628Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/cd/20849920c0556b41629f62a17d0db38dcd13e32373697b08d03120b26a1a/logtide_sdk-0.8.5.tar.gz", hash = "sha256:ee59b3937f1ed9f265fde4d1c7a9d69df0f82eb2136c951b9e49d0f8cead0acc", size = 30806, upload-time = "2026-04-05T22:16:51.649Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bf/3e/c92cd5dd27019b2763b9854a66c8e349208f0f83a82df63bd14c41c0076a/logtide_sdk-0.8.4-py3-none-any.whl", hash = "sha256:e2cb63672522816e17d4f6946ee4460bb0b600d09063bdcbf6d91e3ddb4ee52c", size = 29028, upload-time = "2026-03-21T22:52:57.416Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/e2/67c55520f067e3bc16916061e772800b0edad5082389d1ef227902792c4d/logtide_sdk-0.8.5-py3-none-any.whl", hash = "sha256:ddfb3a714078d89504f98adcd17fa30b33688fad7109dd02a341840cb61876ba", size = 29111, upload-time = "2026-04-05T22:16:50.205Z" },
 ]
 
 [package.optional-dependencies]
