@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+from typing import Any
 from pathlib import Path
 
 import sentry_sdk
@@ -183,7 +184,9 @@ TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 # LogTide structured logging
 _logtide_api_url = os.environ.get("LOGTIDE_API_URL", "")
 _logtide_api_key = os.environ.get("LOGTIDE_API_KEY", "")
-LOGTIDE_SERVICE_NAME = os.environ.get("LOGTIDE_SERVICE_NAME", "food-purchase-planner-web")
+LOGTIDE_SERVICE_NAME = os.environ.get(
+    "LOGTIDE_SERVICE_NAME", "food-purchase-planner-web"
+)
 
 LOGTIDE_CLIENT: LogTideClient | None = None
 if _logtide_api_url and _logtide_api_key:
@@ -198,7 +201,7 @@ if _logtide_api_url and _logtide_api_key:
 # Logging
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-LOGGING = {
+LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -253,12 +256,13 @@ LOGGING = {
     },
 }
 
-# Attach LogTide handler to root logger so all app loggers forward to LogTide
 if LOGTIDE_CLIENT:
-    import logging
-
-    _logtide_handler = LogTideHandler(
-        client=LOGTIDE_CLIENT, service=LOGTIDE_SERVICE_NAME
-    )
-    _logtide_handler.setLevel(logging.WARNING)
-    logging.getLogger().addHandler(_logtide_handler)
+    LOGGING["handlers"]["logtide"] = {
+        "()": LogTideHandler,
+        "client": LOGTIDE_CLIENT,
+        "service": LOGTIDE_SERVICE_NAME,
+        "level": "WARNING",
+    }
+    LOGGING["root"]["handlers"].append("logtide")
+    for _logger_cfg in LOGGING["loggers"].values():
+        _logger_cfg["handlers"].append("logtide")

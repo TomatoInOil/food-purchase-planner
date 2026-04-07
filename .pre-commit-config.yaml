@@ -26,4 +26,4 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
-        additional_dependencies: [django-stubs, django, djangorestframework, djangorestframework-stubs, python-dotenv, sentry-sdk]
+        additional_dependencies: [django-stubs, django, djangorestframework, djangorestframework-stubs, python-dotenv, sentry-sdk, logtide-sdk]
