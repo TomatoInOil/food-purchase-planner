@@ -100,12 +100,14 @@ jobs:
           GLITCHTIP_RELEASE: ${{ secrets.GLITCHTIP_RELEASE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_BOT_USERNAME: ${{ secrets.TELEGRAM_BOT_USERNAME }}
+          LOGTIDE_API_URL: ${{ secrets.LOGTIDE_API_URL }}
+          LOGTIDE_API_KEY: ${{ secrets.LOGTIDE_API_KEY }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,GLITCHTIP_DSN,GLITCHTIP_ENVIRONMENT,GLITCHTIP_RELEASE,TELEGRAM_BOT_TOKEN,TELEGRAM_BOT_USERNAME
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,GLITCHTIP_DSN,GLITCHTIP_ENVIRONMENT,GLITCHTIP_RELEASE,TELEGRAM_BOT_TOKEN,TELEGRAM_BOT_USERNAME,LOGTIDE_API_URL,LOGTIDE_API_KEY
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
@@ -129,6 +131,8 @@ jobs:
               [ -n "$GLITCHTIP_RELEASE" ] && printf 'GLITCHTIP_RELEASE="%s"\n' "${GLITCHTIP_RELEASE//\"/\\\"}"
               [ -n "$TELEGRAM_BOT_TOKEN" ] && printf 'TELEGRAM_BOT_TOKEN="%s"\n' "${TELEGRAM_BOT_TOKEN//\"/\\\"}"
               [ -n "$TELEGRAM_BOT_USERNAME" ] && printf 'TELEGRAM_BOT_USERNAME="%s"\n' "${TELEGRAM_BOT_USERNAME//\"/\\\"}"
+              [ -n "$LOGTIDE_API_URL" ] && printf 'LOGTIDE_API_URL="%s"\n' "${LOGTIDE_API_URL//\"/\\\"}"
+              [ -n "$LOGTIDE_API_KEY" ] && printf 'LOGTIDE_API_KEY="%s"\n' "${LOGTIDE_API_KEY//\"/\\\"}"
             } > .env
             chmod 600 .env
             bash deploy.sh "${IMAGE_TAG}"

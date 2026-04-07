@@ -32,6 +32,9 @@ services:
       GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
       GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
       GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
+      LOGTIDE_API_URL: ${LOGTIDE_API_URL:-}
+      LOGTIDE_API_KEY: ${LOGTIDE_API_KEY:-}
+      LOGTIDE_SERVICE_NAME: food-purchase-planner-web
     volumes:
       - static_volume:/app/staticfiles
     depends_on:
@@ -55,6 +58,9 @@ services:
       GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
       GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
       GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
+      LOGTIDE_API_URL: ${LOGTIDE_API_URL:-}
+      LOGTIDE_API_KEY: ${LOGTIDE_API_KEY:-}
+      LOGTIDE_SERVICE_NAME: food-purchase-planner-bot
     depends_on:
       db:
         condition: service_healthy
