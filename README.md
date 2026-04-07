@@ -44,8 +44,8 @@
    ```
    LOGTIDE_API_URL=http://your-logtide-instance:8080
    LOGTIDE_API_KEY=lp_your_api_key_here
-   LOGTIDE_SERVICE_NAME=food-purchase-planner   # опционально, по умолчанию food-purchase-planner
    ```
+   Имя сервиса задаётся per-container в `docker-compose.prod.yml`: `food-purchase-planner-web` для веб-приложения, `food-purchase-planner-bot` для Telegram-бота. Для локальной разработки по умолчанию используется `food-purchase-planner-web` (переопределяется через `LOGTIDE_SERVICE_NAME`).
 2. При запуске приложения автоматически подключаются:
    - **Django middleware** (`LogTideDjangoMiddleware`) — логирует HTTP-запросы/ответы с длительностью и статус-кодами.
    - **stdlib logging handler** (`LogTideHandler`) — пересылает в LogTide все логи уровня WARNING и выше из стандартных Python-логгеров.
@@ -74,4 +74,4 @@
 - (опционально, но рекомендуется для pull образов с приватного регистра) `GHCR_USER` и `GHCR_TOKEN` — учётные данные для `ghcr.io`. Если заданы, `deploy.sh` выполнит `docker login ghcr.io` перед `docker compose pull`.
 - **Обязательные для docker-compose:** `POSTGRES_PASSWORD`, `SECRET_KEY`, `ALLOWED_HOSTS`. В шаге «Deploy via SSH» на сервере формируется файл `.env` из этих секретов перед запуском `deploy.sh`; при отсутствии любого из них шаг «Validate deploy config» завершится с ошибкой. Для production задайте в `ALLOWED_HOSTS` ваш домен (не используйте localhost).
 - (опционально) `POSTGRES_USER`, `POSTGRES_DB` — подставляются в `.env` при деплое; по умолчанию используются значения из `.env.example`.
-- (опционально) `LOGTIDE_API_URL`, `LOGTIDE_API_KEY` — URL и API-ключ инстанса LogTide. Если заданы, активируется структурированное логирование. `LOGTIDE_SERVICE_NAME` — имя сервиса в LogTide (по умолчанию `food-purchase-planner`).
+- (опционально) `LOGTIDE_API_URL`, `LOGTIDE_API_KEY` — URL и API-ключ инстанса LogTide. Если заданы, активируется структурированное логирование. Имя сервиса задаётся per-container в `docker-compose.prod.yml` (`food-purchase-planner-web` / `food-purchase-planner-bot`).

@@ -183,7 +183,7 @@ TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 # LogTide structured logging
 _logtide_api_url = os.environ.get("LOGTIDE_API_URL", "")
 _logtide_api_key = os.environ.get("LOGTIDE_API_KEY", "")
-LOGTIDE_SERVICE_NAME = os.environ.get("LOGTIDE_SERVICE_NAME", "food-purchase-planner")
+LOGTIDE_SERVICE_NAME = os.environ.get("LOGTIDE_SERVICE_NAME", "food-purchase-planner-web")
 
 LOGTIDE_CLIENT: LogTideClient | None = None
 if _logtide_api_url and _logtide_api_key:
