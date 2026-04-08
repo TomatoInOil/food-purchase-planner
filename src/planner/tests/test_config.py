@@ -12,6 +12,7 @@ from django.test import Client, TestCase
 from config.exceptions import _flatten_detail
 from planner.models import UserTelegramProfile
 from planner.views_telegram import (
+    MAX_AUTH_AGE_SECONDS,
     _build_username,
     _is_auth_date_fresh,
     _verify_telegram_auth,
@@ -310,3 +311,110 @@ class DeleteUnlinkedUsersCommandTests(TestCase):
     def test_reports_no_users_when_none_unlinked(self):
         output = self._run_command()
         self.assertIn("No unlinked users", output)
+
+    def test_does_not_delete_staff_users(self):
+        User.objects.create_user(username="staff", is_staff=True)
+        self._run_command()
+        self.assertTrue(User.objects.filter(username="staff").exists())
+
+
+class BuildUsernameDoubleCollisionTests(TestCase):
+    """Test _build_username when both base and base_{id} are taken."""
+
+    def test_double_collision_returns_unique_name(self):
+        User.objects.create_user(username="johndoe")
+        User.objects.create_user(username="johndoe_456")
+        result = _build_username(456, "johndoe")
+        self.assertFalse(User.objects.filter(username=result).exists())
+        self.assertTrue(result.startswith("tg_"))
+
+
+class TelegramLoginCallbackEdgeCaseTests(TestCase):
+    """Additional edge-case tests for TelegramLoginCallbackView."""
+
+    def setUp(self):
+        self.client = Client()
+
+    def _make_data(self, **kwargs):
+        return _make_auth_data(**kwargs)
+
+    def test_callback_without_username_field_creates_user(self):
+        auth_date = int(time.time())
+        data = {
+            "id": "777777",
+            "first_name": "Noname",
+            "auth_date": str(auth_date),
+        }
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+        secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+        data["hash"] = hmac.new(
+            secret_key, data_check_string.encode(), hashlib.sha256
+        ).hexdigest()
+
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(User.objects.filter(username="user_777777").exists())
+
+    def test_auth_date_at_exact_ttl_boundary_rejected(self):
+        data = _make_auth_data(age_seconds=MAX_AUTH_AGE_SECONDS + 1)
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data)
+        self.assertEqual(response.status_code, 400)
+
+    def test_auth_date_just_within_ttl_accepted(self):
+        data = _make_auth_data(telegram_id=888888, age_seconds=MAX_AUTH_AGE_SECONDS - 1)
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data)
+        self.assertEqual(response.status_code, 302)
+
+    def test_new_user_last_name_saved(self):
+        data = _make_auth_data(telegram_id=555555, username="lastnametest")
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            self.client.get("/telegram/callback/", data)
+        user = User.objects.get(username="lastnametest")
+        self.assertEqual(user.last_name, "User")
+
+    def test_authenticated_user_redirected_from_callback(self):
+        user = User.objects.create_user(username="alreadyin")
+        self.client.force_login(user)
+        response = self.client.get("/telegram/callback/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/")
+
+    def test_authenticated_user_redirected_from_login_page(self):
+        user = User.objects.create_user(username="alreadyin2")
+        self.client.force_login(user)
+        response = self.client.get("/login/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/")
+
+    def test_next_param_safe_relative_url_used(self):
+        user = User.objects.create_user(username="nextuser")
+        UserTelegramProfile.objects.create(user=user, chat_id=321321)
+        data = _make_auth_data(telegram_id=321321)
+        data_with_next = dict(data)
+        data_with_next["next"] = "/cook-today/"
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data_with_next)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/cook-today/")
+
+    def test_next_param_absolute_url_ignored(self):
+        user = User.objects.create_user(username="nextuser2")
+        UserTelegramProfile.objects.create(user=user, chat_id=654654)
+        data = _make_auth_data(telegram_id=654654)
+        data_with_next = dict(data)
+        data_with_next["next"] = "https://evil.com/steal"
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data_with_next)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/")
+
+    def test_malformed_auth_date_returns_400(self):
+        data = _make_auth_data()
+        data["auth_date"] = "notanumber"
+        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
+            response = self.client.get("/telegram/callback/", data)
+        self.assertIn(response.status_code, [400, 403])

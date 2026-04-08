@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import TemplateView
@@ -22,9 +23,14 @@ class CookTodayView(LoginRequiredMixin, TemplateView):
 
 
 class TelegramLoginPageView(TemplateView):
-    """Login page with Telegram Login Widget."""
+    """Login page with Telegram Login Widget; redirects authenticated users home."""
 
     template_name = "auth/telegram_login.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect(settings.LOGIN_REDIRECT_URL)
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

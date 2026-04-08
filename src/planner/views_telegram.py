@@ -5,6 +5,7 @@ import hmac
 import logging
 import secrets
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login
@@ -34,7 +35,11 @@ class TelegramLoginCallbackView(View):
     http_method_names = ["get"]
 
     def get(self, request):
-        data = request.GET.dict()
+        if request.user.is_authenticated:
+            return redirect(settings.LOGIN_REDIRECT_URL)
+
+        next_url = _safe_next_url(request.GET.get("next", ""))
+        data = {k: v for k, v in request.GET.items() if k != "next"}
 
         if not data.get("hash"):
             return HttpResponseBadRequest("Missing auth data")
@@ -65,7 +70,7 @@ class TelegramLoginCallbackView(View):
         logger.info(
             "Telegram auth: user %s logged in (telegram_id=%s)", user.pk, telegram_id
         )
-        return redirect(settings.LOGIN_REDIRECT_URL)
+        return redirect(next_url or settings.LOGIN_REDIRECT_URL)
 
 
 class TelegramGenerateLinkView(APIView):
@@ -181,6 +186,16 @@ def _create_user_from_telegram(telegram_id: int, data: dict):
         "Telegram auth: created new user %s for telegram_id=%s", user.pk, telegram_id
     )
     return user
+
+
+def _safe_next_url(next_url: str) -> str:
+    """Return next_url if it is a safe relative path, otherwise empty string."""
+    if not next_url:
+        return ""
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        return ""
+    return next_url
 
 
 def _build_username(telegram_id: int, tg_username: str | None) -> str:

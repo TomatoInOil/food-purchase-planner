@@ -49,9 +49,13 @@ class Command(BaseCommand):
 
 
 def _find_unlinked_users() -> list:
-    """Return non-superuser accounts without a UserTelegramProfile."""
+    """Return regular (non-staff, non-superuser) accounts without a UserTelegramProfile."""
     linked_user_ids = UserTelegramProfile.objects.values_list("user_id", flat=True)
-    return list(User.objects.filter(is_superuser=False).exclude(pk__in=linked_user_ids))
+    return list(
+        User.objects.filter(is_superuser=False, is_staff=False).exclude(
+            pk__in=linked_user_ids
+        )
+    )
 
 
 def _delete_users(users: list) -> int:
