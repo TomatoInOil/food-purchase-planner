@@ -1,15 +1,11 @@
 """Views for config project."""
 
-from django.contrib.auth import login
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import LoginView as AuthLoginView
-from django.contrib.auth.views import LogoutView as AuthLogoutView
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from django.views.generic import CreateView, TemplateView
-
-from config.forms import RegisterForm
+from django.views.generic import TemplateView
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -26,26 +22,17 @@ class CookTodayView(LoginRequiredMixin, TemplateView):
     template_name = "cook_today.html"
 
 
-class LoginView(AuthLoginView):
-    """Login page."""
+class TelegramLoginPageView(TemplateView):
+    """Login page with Telegram Login Widget; redirects authenticated users home."""
 
-    template_name = "auth/login.html"
+    template_name = "auth/telegram_login.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect(settings.LOGIN_REDIRECT_URL)
+        return super().dispatch(request, *args, **kwargs)
 
-class RegisterView(CreateView):
-    """Registration page; logs in and redirects to home on success."""
-
-    form_class = RegisterForm
-    template_name = "auth/register.html"
-    success_url = "/"
-
-    def form_valid(self, form):
-        self.object = form.save()
-        login(self.request, self.object)
-        return redirect(self.get_success_url())
-
-
-class LogoutView(AuthLogoutView):
-    """Logout; redirect configured via LOGOUT_REDIRECT_URL."""
-
-    pass
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["bot_username"] = settings.TELEGRAM_BOT_USERNAME
+        return context

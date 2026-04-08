@@ -16,22 +16,22 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.contrib.auth.views import LogoutView
 from django.urls import include, path
 
-from config.views import (
-    CookTodayView,
-    LoginView,
-    LogoutView,
-    RecipeManagerView,
-    RegisterView,
-)
+from config.views import CookTodayView, RecipeManagerView, TelegramLoginPageView
+from planner.views_telegram import TelegramLoginCallbackView
 
 urlpatterns = [
     path("", RecipeManagerView.as_view()),
     path("cook-today/", CookTodayView.as_view(), name="cook-today"),
     path("api/", include("planner.urls")),
-    path("login/", LoginView.as_view(), name="login"),
-    path("register/", RegisterView.as_view(), name="register"),
+    path("login/", TelegramLoginPageView.as_view(), name="login"),
+    path(
+        "telegram/callback/",
+        TelegramLoginCallbackView.as_view(),
+        name="telegram-callback",
+    ),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
 ]
