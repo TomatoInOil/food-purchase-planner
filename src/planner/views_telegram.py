@@ -3,10 +3,12 @@
 import hashlib
 import hmac
 import logging
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login
+from django.db import IntegrityError, transaction
 from django.http import HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -20,12 +22,16 @@ from planner.models import TelegramLinkToken, UserTelegramProfile
 
 logger = logging.getLogger(__name__)
 
+User = get_user_model()
+
 LINK_TOKEN_EXPIRY_MINUTES = 15
 MAX_AUTH_AGE_SECONDS = 3600  # 1 hour
 
 
 class TelegramLoginCallbackView(View):
     """Handle Telegram Login Widget redirect callback; log in or auto-create user."""
+
+    http_method_names = ["get"]
 
     def get(self, request):
         data = request.GET.dict()
@@ -44,13 +50,18 @@ class TelegramLoginCallbackView(View):
             )
             return HttpResponseForbidden("Invalid signature")
 
-        if not _is_auth_date_fresh(int(data["auth_date"])):
+        try:
+            auth_date = int(data["auth_date"])
+            telegram_id = int(data["id"])
+        except (KeyError, ValueError):
+            return HttpResponseBadRequest("Invalid auth data fields")
+
+        if not _is_auth_date_fresh(auth_date):
             return HttpResponseBadRequest("Auth data expired, please try again")
 
-        telegram_id = int(data["id"])
         user = _get_or_create_user(telegram_id, data)
 
-        login(request, user)
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         logger.info(
             "Telegram auth: user %s logged in (telegram_id=%s)", user.pk, telegram_id
         )
@@ -130,9 +141,9 @@ def _verify_telegram_auth(data: dict, bot_token: str) -> bool:
 
 
 def _is_auth_date_fresh(auth_date: int) -> bool:
-    """Return True if the auth_date timestamp is within the allowed age."""
+    """Return True if the auth_date timestamp is recent and not in the future."""
     age_seconds = timezone.now().timestamp() - auth_date
-    return age_seconds <= MAX_AUTH_AGE_SECONDS
+    return 0 <= age_seconds <= MAX_AUTH_AGE_SECONDS
 
 
 def _get_or_create_user(telegram_id: int, data: dict):
@@ -147,15 +158,25 @@ def _get_or_create_user(telegram_id: int, data: dict):
 
 
 def _create_user_from_telegram(telegram_id: int, data: dict):
-    """Create a new User and UserTelegramProfile from Telegram widget data."""
-    User = get_user_model()
-    username = _build_username(telegram_id, data.get("username"))
-    user = User.objects.create_user(
-        username=username,
-        first_name=data.get("first_name", ""),
-        last_name=data.get("last_name", ""),
-    )
-    UserTelegramProfile.objects.create(user=user, chat_id=telegram_id)
+    """Create a new User and UserTelegramProfile from Telegram widget data.
+
+    Wrapped in a transaction so that concurrent requests for the same
+    telegram_id result in one user rather than an IntegrityError 500.
+    """
+    try:
+        with transaction.atomic():
+            username = _build_username(telegram_id, data.get("username"))
+            user = User.objects.create_user(
+                username=username,
+                first_name=data.get("first_name", ""),
+                last_name=data.get("last_name", ""),
+            )
+            UserTelegramProfile.objects.create(user=user, chat_id=telegram_id)
+    except IntegrityError:
+        profile = UserTelegramProfile.objects.select_related("user").get(
+            chat_id=telegram_id
+        )
+        return profile.user
     logger.info(
         "Telegram auth: created new user %s for telegram_id=%s", user.pk, telegram_id
     )
@@ -163,9 +184,16 @@ def _create_user_from_telegram(telegram_id: int, data: dict):
 
 
 def _build_username(telegram_id: int, tg_username: str | None) -> str:
-    """Build a unique Django username from Telegram data."""
-    User = get_user_model()
+    """Build a unique Django username from Telegram data.
+
+    Tries the Telegram username, then appends the telegram_id as a suffix,
+    and falls back to a random hex suffix if both are taken.
+    """
     base = tg_username if tg_username else f"user_{telegram_id}"
-    if not User.objects.filter(username=base).exists():
-        return base
-    return f"{base}_{telegram_id}"
+    for candidate in (base, f"{base}_{telegram_id}"):
+        if not User.objects.filter(username=candidate).exists():
+            return candidate
+    while True:
+        candidate = f"tg_{secrets.token_hex(4)}"
+        if not User.objects.filter(username=candidate).exists():
+            return candidate
