@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Вход{% endblock %}
+
+{% block content %}
+    {% include "auth/_header.html" with title="Вход" subtitle="Войдите через Telegram" %}
+
+    <div class="card">
+        {% if bot_username %}
+            <div class="form-actions" style="justify-content: center;">
+                <script async src="https://telegram.org/js/telegram-widget.js?22"
+                    data-telegram-login="{{ bot_username }}"
+                    data-size="large"
+                    data-auth-url="/telegram/callback/"
+                    data-request-access="write">
+                </script>
+            </div>
+        {% else %}
+            <p class="field-error">Telegram-авторизация не настроена. Обратитесь к администратору.</p>
+        {% endif %}
+    </div>
+{% endblock %}

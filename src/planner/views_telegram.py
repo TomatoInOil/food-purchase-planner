@@ -1,9 +1,16 @@
-"""API views for Telegram account linking."""
+"""API views for Telegram account linking and Login Widget authentication."""
 
+import hashlib
+import hmac
+import logging
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth import get_user_model, login
+from django.http import HttpResponseBadRequest, HttpResponseForbidden
+from django.shortcuts import redirect
 from django.utils import timezone
+from django.views import View
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -11,7 +18,43 @@ from rest_framework.views import APIView
 
 from planner.models import TelegramLinkToken, UserTelegramProfile
 
+logger = logging.getLogger(__name__)
+
 LINK_TOKEN_EXPIRY_MINUTES = 15
+MAX_AUTH_AGE_SECONDS = 3600  # 1 hour
+
+
+class TelegramLoginCallbackView(View):
+    """Handle Telegram Login Widget redirect callback; log in or auto-create user."""
+
+    def get(self, request):
+        data = request.GET.dict()
+
+        if not data.get("hash"):
+            return HttpResponseBadRequest("Missing auth data")
+
+        if not settings.TELEGRAM_BOT_TOKEN:
+            logger.error("Telegram bot token is not configured")
+            return HttpResponseForbidden("Telegram auth is not configured")
+
+        if not _verify_telegram_auth(data, settings.TELEGRAM_BOT_TOKEN):
+            logger.warning(
+                "Telegram auth: invalid hash from IP %s",
+                request.META.get("REMOTE_ADDR"),
+            )
+            return HttpResponseForbidden("Invalid signature")
+
+        if not _is_auth_date_fresh(int(data["auth_date"])):
+            return HttpResponseBadRequest("Auth data expired, please try again")
+
+        telegram_id = int(data["id"])
+        user = _get_or_create_user(telegram_id, data)
+
+        login(request, user)
+        logger.info(
+            "Telegram auth: user %s logged in (telegram_id=%s)", user.pk, telegram_id
+        )
+        return redirect(settings.LOGIN_REDIRECT_URL)
 
 
 class TelegramGenerateLinkView(APIView):
@@ -72,3 +115,57 @@ class TelegramStatusView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
+
+
+def _verify_telegram_auth(data: dict, bot_token: str) -> bool:
+    """Verify Telegram Login Widget data signature (HMAC-SHA256)."""
+    data = dict(data)
+    received_hash = data.pop("hash", "")
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    expected_hash = hmac.new(
+        secret_key, data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected_hash, received_hash)
+
+
+def _is_auth_date_fresh(auth_date: int) -> bool:
+    """Return True if the auth_date timestamp is within the allowed age."""
+    age_seconds = timezone.now().timestamp() - auth_date
+    return age_seconds <= MAX_AUTH_AGE_SECONDS
+
+
+def _get_or_create_user(telegram_id: int, data: dict):
+    """Return existing user linked to this Telegram ID, or create a new one."""
+    try:
+        profile = UserTelegramProfile.objects.select_related("user").get(
+            chat_id=telegram_id
+        )
+        return profile.user
+    except UserTelegramProfile.DoesNotExist:
+        return _create_user_from_telegram(telegram_id, data)
+
+
+def _create_user_from_telegram(telegram_id: int, data: dict):
+    """Create a new User and UserTelegramProfile from Telegram widget data."""
+    User = get_user_model()
+    username = _build_username(telegram_id, data.get("username"))
+    user = User.objects.create_user(
+        username=username,
+        first_name=data.get("first_name", ""),
+        last_name=data.get("last_name", ""),
+    )
+    UserTelegramProfile.objects.create(user=user, chat_id=telegram_id)
+    logger.info(
+        "Telegram auth: created new user %s for telegram_id=%s", user.pk, telegram_id
+    )
+    return user
+
+
+def _build_username(telegram_id: int, tg_username: str | None) -> str:
+    """Build a unique Django username from Telegram data."""
+    User = get_user_model()
+    base = tg_username if tg_username else f"user_{telegram_id}"
+    if not User.objects.filter(username=base).exists():
+        return base
+    return f"{base}_{telegram_id}"

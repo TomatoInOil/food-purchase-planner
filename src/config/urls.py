@@ -24,7 +24,9 @@ from config.views import (
     LogoutView,
     RecipeManagerView,
     RegisterView,
+    TelegramLoginPageView,
 )
+from planner.views_telegram import TelegramLoginCallbackView
 
 urlpatterns = [
     path("", RecipeManagerView.as_view()),
@@ -33,5 +35,11 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
     path("register/", RegisterView.as_view(), name="register"),
     path("logout/", LogoutView.as_view(), name="logout"),
+    path("telegram/login/", TelegramLoginPageView.as_view(), name="telegram-login"),
+    path(
+        "telegram/callback/",
+        TelegramLoginCallbackView.as_view(),
+        name="telegram-callback",
+    ),
     path("admin/", admin.site.urls),
 ]
