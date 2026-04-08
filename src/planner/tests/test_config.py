@@ -3,8 +3,10 @@
 import hashlib
 import hmac
 import time
+from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import Client, TestCase
 
 from config.exceptions import _flatten_detail
@@ -173,11 +175,14 @@ class IsAuthDateFreshTests(TestCase):
     def test_fresh_timestamp_accepted(self):
         self.assertTrue(_is_auth_date_fresh(int(time.time())))
 
-    def test_timestamp_55_minutes_ago_accepted(self):
-        self.assertTrue(_is_auth_date_fresh(int(time.time()) - 55 * 60))
+    def test_timestamp_4_minutes_ago_accepted(self):
+        self.assertTrue(_is_auth_date_fresh(int(time.time()) - 4 * 60))
 
-    def test_timestamp_2_hours_ago_rejected(self):
-        self.assertFalse(_is_auth_date_fresh(int(time.time()) - 7200))
+    def test_timestamp_10_minutes_ago_rejected(self):
+        self.assertFalse(_is_auth_date_fresh(int(time.time()) - 10 * 60))
+
+    def test_future_timestamp_rejected(self):
+        self.assertFalse(_is_auth_date_fresh(int(time.time()) + 60))
 
 
 class BuildUsernameTests(TestCase):
@@ -219,7 +224,7 @@ class TelegramLoginCallbackTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_expired_auth_date_returns_400(self):
-        data = _make_auth_data(age_seconds=7200)
+        data = _make_auth_data(age_seconds=600)  # 10 min > 5 min TTL
         with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
             response = self._get_callback(data)
         self.assertEqual(response.status_code, 400)
@@ -276,10 +281,6 @@ class DeleteUnlinkedUsersCommandTests(TestCase):
     """Tests for delete_unlinked_users management command."""
 
     def _run_command(self, dry_run: bool = False) -> str:
-        from io import StringIO
-
-        from django.core.management import call_command
-
         out = StringIO()
         call_command("delete_unlinked_users", dry_run=dry_run, stdout=out)
         return out.getvalue()

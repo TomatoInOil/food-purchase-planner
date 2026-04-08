@@ -55,7 +55,7 @@ def _find_unlinked_users() -> list:
 
 
 def _delete_users(users: list) -> int:
-    """Delete given users and return the count of deleted records."""
+    """Delete given users and return the count of deleted User rows."""
     pks = [u.pk for u in users]
-    deleted, _ = User.objects.filter(pk__in=pks).delete()
-    return deleted
+    User.objects.filter(pk__in=pks).delete()
+    return len(pks)

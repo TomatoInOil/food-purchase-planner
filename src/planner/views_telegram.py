@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 LINK_TOKEN_EXPIRY_MINUTES = 15
-MAX_AUTH_AGE_SECONDS = 3600  # 1 hour
+MAX_AUTH_AGE_SECONDS = 300  # 5 minutes — limits replay window
 
 
 class TelegramLoginCallbackView(View):

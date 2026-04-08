@@ -158,9 +158,6 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-# Telegram authentication
-TELEGRAM_AUTH_MAX_AGE_SECONDS = 3600  # reject auth_date older than 1 hour
-
 # Telegram bot settings
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
