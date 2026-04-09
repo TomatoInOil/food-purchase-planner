@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import TemplateView
@@ -35,4 +36,7 @@ class TelegramLoginPageView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["bot_username"] = settings.TELEGRAM_BOT_USERNAME
+        context["telegram_callback_url"] = self.request.build_absolute_uri(
+            reverse("telegram-callback")
+        )
         return context

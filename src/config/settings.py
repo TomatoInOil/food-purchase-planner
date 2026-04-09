@@ -52,6 +52,9 @@ ALLOWED_HOSTS: list[str] = (
     else (["*"] if DEBUG else [])
 )
 
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
+
 _csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "").strip()
 CSRF_TRUSTED_ORIGINS: list[str] = (
     [o.strip() for o in _csrf_origins.split(",") if o.strip()] if _csrf_origins else []
