@@ -27,6 +27,7 @@ User = get_user_model()
 
 LINK_TOKEN_EXPIRY_MINUTES = 15
 MAX_AUTH_AGE_SECONDS = 300  # 5 minutes — limits replay window
+MAX_CLOCK_SKEW_SECONDS = 10  # tolerance for clock differences between servers
 
 
 class TelegramLoginCallbackView(View):
@@ -146,9 +147,13 @@ def _verify_telegram_auth(data: dict, bot_token: str) -> bool:
 
 
 def _is_auth_date_fresh(auth_date: int) -> bool:
-    """Return True if the auth_date timestamp is recent and not in the future."""
+    """Return True if the auth_date timestamp is recent enough.
+
+    Allows a small clock-skew tolerance because auth_date comes from
+    Telegram's servers whose clock may be slightly ahead of ours.
+    """
     age_seconds = timezone.now().timestamp() - auth_date
-    return 0 <= age_seconds <= MAX_AUTH_AGE_SECONDS
+    return -MAX_CLOCK_SKEW_SECONDS <= age_seconds <= MAX_AUTH_AGE_SECONDS
 
 
 def _get_or_create_user(telegram_id: int, data: dict):

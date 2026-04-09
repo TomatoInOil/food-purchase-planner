@@ -13,6 +13,7 @@ from config.exceptions import _flatten_detail
 from planner.models import UserTelegramProfile
 from planner.views_telegram import (
     MAX_AUTH_AGE_SECONDS,
+    MAX_CLOCK_SKEW_SECONDS,
     _build_username,
     _is_auth_date_fresh,
     _verify_telegram_auth,
@@ -181,6 +182,9 @@ class IsAuthDateFreshTests(TestCase):
 
     def test_timestamp_10_minutes_ago_rejected(self):
         self.assertFalse(_is_auth_date_fresh(int(time.time()) - 10 * 60))
+
+    def test_slight_clock_skew_accepted(self):
+        self.assertTrue(_is_auth_date_fresh(int(time.time()) + MAX_CLOCK_SKEW_SECONDS - 1))
 
     def test_future_timestamp_rejected(self):
         self.assertFalse(_is_auth_date_fresh(int(time.time()) + 60))
