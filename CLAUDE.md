@@ -82,3 +82,5 @@ pytest + pytest-django. Config in `pyproject.toml` sets `DJANGO_SETTINGS_MODULE 
 ## CI/CD
 
 GitHub Actions: lint+test on push/PR to master → build Docker image to ghcr.io → deploy to VDS via SSH + docker-compose.
+
+When adding, removing, or renaming environment variables, update the deploy workflow (`.github/workflows/`) — env vars are passed explicitly to containers in the deploy step.

@@ -28,6 +28,8 @@ jobs:
 
       - name: mypy
         run: uv run mypy src
+        env:
+          SOCKS5_PROXY_URL: socks5://localhost:1080
 
   test:
     runs-on: ubuntu-latest
@@ -47,3 +49,5 @@ jobs:
 
       - name: Run Django tests
         run: uv run python src/manage.py test
+        env:
+          SOCKS5_PROXY_URL: socks5://localhost:1080
