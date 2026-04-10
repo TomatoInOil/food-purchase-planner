@@ -34,6 +34,7 @@ services:
       GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
       LOGTIDE_API_URL: ${LOGTIDE_API_URL:-}
       LOGTIDE_API_KEY: ${LOGTIDE_API_KEY:-}
+      SOCKS5_PROXY_URL: ${SOCKS5_PROXY_URL}
       LOGTIDE_SERVICE_NAME: food-purchase-planner-web
     volumes:
       - static_volume:/app/staticfiles
@@ -60,6 +61,7 @@ services:
       GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
       LOGTIDE_API_URL: ${LOGTIDE_API_URL:-}
       LOGTIDE_API_KEY: ${LOGTIDE_API_KEY:-}
+      SOCKS5_PROXY_URL: ${SOCKS5_PROXY_URL}
       LOGTIDE_SERVICE_NAME: food-purchase-planner-bot
     depends_on:
       db:
