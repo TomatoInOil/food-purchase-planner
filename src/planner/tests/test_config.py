@@ -180,8 +180,11 @@ class IsAuthDateFreshTests(TestCase):
     def test_timestamp_4_minutes_ago_accepted(self):
         self.assertTrue(_is_auth_date_fresh(int(time.time()) - 4 * 60))
 
-    def test_timestamp_10_minutes_ago_rejected(self):
-        self.assertFalse(_is_auth_date_fresh(int(time.time()) - 10 * 60))
+    def test_timestamp_10_minutes_ago_accepted(self):
+        self.assertTrue(_is_auth_date_fresh(int(time.time()) - 10 * 60))
+
+    def test_timestamp_2_days_ago_rejected(self):
+        self.assertFalse(_is_auth_date_fresh(int(time.time()) - 2 * 86400))
 
     def test_slight_clock_skew_accepted(self):
         self.assertTrue(_is_auth_date_fresh(int(time.time()) + MAX_CLOCK_SKEW_SECONDS - 1))
@@ -229,7 +232,7 @@ class TelegramLoginCallbackTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_expired_auth_date_returns_400(self):
-        data = _make_auth_data(age_seconds=600)  # 10 min > 5 min TTL
+        data = _make_auth_data(age_seconds=90000)  # 25 hours > 1 day TTL
         with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
             response = self._get_callback(data)
         self.assertEqual(response.status_code, 400)

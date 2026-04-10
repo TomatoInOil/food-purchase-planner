@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 LINK_TOKEN_EXPIRY_MINUTES = 15
-MAX_AUTH_AGE_SECONDS = 300  # 5 minutes — limits replay window
+MAX_AUTH_AGE_SECONDS = 86400  # 1 day — Telegram Login Widget caches auth sessions
 MAX_CLOCK_SKEW_SECONDS = 10  # tolerance for clock differences between servers
 
 
