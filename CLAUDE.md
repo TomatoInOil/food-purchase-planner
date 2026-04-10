@@ -83,4 +83,4 @@ pytest + pytest-django. Config in `pyproject.toml` sets `DJANGO_SETTINGS_MODULE 
 
 GitHub Actions: lint+test on push/PR to master → build Docker image to ghcr.io → deploy to VDS via SSH + docker-compose.
 
-When adding, removing, or renaming environment variables, update the deploy workflow (`.github/workflows/`) — env vars are passed explicitly to containers in the deploy step.
+When adding, removing, or renaming environment variables, update **both** the deploy workflow (`.github/workflows/`) and the `environment` sections in `docker-compose.prod.yml` (`web` and `bot` services) — env vars are passed explicitly to containers in both places. The `.env` file on the host is NOT mounted into containers; variables reach Django only through docker-compose `environment`.
