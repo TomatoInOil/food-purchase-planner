@@ -108,6 +108,8 @@ class Command(BaseCommand):
         application = (
             ApplicationBuilder()
             .token(settings.TELEGRAM_BOT_TOKEN)
+            .proxy(settings.SOCKS5_PROXY_URL)
+            .get_updates_proxy(settings.SOCKS5_PROXY_URL)
             .rate_limiter(AIORateLimiter())
             .build()
         )

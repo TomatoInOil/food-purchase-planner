@@ -418,3 +418,13 @@ class TelegramLoginCallbackEdgeCaseTests(TestCase):
         with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
             response = self.client.get("/telegram/callback/", data)
         self.assertIn(response.status_code, [400, 403])
+
+
+class Socks5ProxySettingTests(TestCase):
+    """Tests for SOCKS5_PROXY_URL setting."""
+
+    def test_socks5_proxy_url_from_env(self):
+        from django.conf import settings
+
+        self.assertTrue(hasattr(settings, "SOCKS5_PROXY_URL"))
+        self.assertTrue(len(settings.SOCKS5_PROXY_URL) > 0)

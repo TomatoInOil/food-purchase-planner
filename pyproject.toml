@@ -10,7 +10,7 @@ dependencies = [
     "gunicorn>=25.0.1",
     "psycopg[binary]>=3.3.2",
     "python-dotenv>=1.2.1",
-    "python-telegram-bot[rate-limiter]>=21.0",
+    "python-telegram-bot[rate-limiter,socks]>=21.0",
     "sentry-sdk>=2.55.0",
     "logtide-sdk[django]>=0.8.5",
 ]
