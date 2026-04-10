@@ -68,7 +68,7 @@ class ExceptionHandlerIntegrationTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -109,13 +109,13 @@ class ProtectedPagesTests(TestCase):
         self.assertIn("/login/", response.url)
 
     def test_cook_today_renders_for_authenticated_user(self):
-        user = User.objects.create_user(username="alice", password="pass")
+        user = User.objects.create_user(username="alice")
         self.client.force_login(user)
         response = self.client.get("/cook-today/")
         self.assertEqual(response.status_code, 200)
 
     def test_home_renders_for_authenticated_user(self):
-        user = User.objects.create_user(username="alice", password="pass")
+        user = User.objects.create_user(username="alice")
         self.client.force_login(user)
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -280,7 +280,7 @@ class DeleteUnlinkedUsersCommandTests(TestCase):
         self.assertTrue(User.objects.filter(username="linked").exists())
 
     def test_does_not_delete_superusers(self):
-        User.objects.create_superuser(username="admin", password="pass")
+        User.objects.create_superuser(username="admin")
         self._run_command()
         self.assertTrue(User.objects.filter(username="admin").exists())
 

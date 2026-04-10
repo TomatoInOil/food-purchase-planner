@@ -19,7 +19,7 @@ User = get_user_model()
 class MenuSlotAssignmentModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
         self.recipe = Recipe.objects.create(
@@ -46,7 +46,7 @@ class MenuSlotAssignmentModelTests(TestCase):
 
     def test_ordering_by_pk(self):
         bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         a1 = MenuSlotAssignment.objects.create(menu_slot=self.slot, user=self.user)
         a2 = MenuSlotAssignment.objects.create(menu_slot=self.slot, user=bob)
@@ -58,13 +58,13 @@ class MenuSlotAssignmentModelTests(TestCase):
 class GetMenuMembersTests(TestCase):
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         self.carol = User.objects.create_user(
-            username="carol", password="pass", email="carol@test.com"
+            username="carol", email="carol@test.com"
         )
         self.menu = Menu.objects.create(user=self.alice, name="Test")
 
@@ -105,10 +105,10 @@ class GetMenuMembersTests(TestCase):
 class DuplicateMenuWithAssignmentsTests(TestCase):
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         self.menu = Menu.objects.create(user=self.alice, name="Original")
         self.recipe = Recipe.objects.create(
@@ -148,7 +148,7 @@ class ApiTestBase(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="testuser", password="testpass123", email="test@example.com"
+            username="testuser", email="test@example.com"
         )
         self.client.force_login(self.user)
 
@@ -165,7 +165,7 @@ class MenuMembersEndpointTests(ApiTestBase):
     def test_returns_owner_and_editors(self):
         menu = Menu.objects.create(user=self.user, name="Test")
         bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=self.user,
@@ -179,7 +179,7 @@ class MenuMembersEndpointTests(ApiTestBase):
 
     def test_404_for_non_shared_user(self):
         other = User.objects.create_user(
-            username="other", password="pass", email="other@test.com"
+            username="other", email="other@test.com"
         )
         menu = Menu.objects.create(user=other, name="Private")
         response = self.client.get(f"/api/menus/{menu.id}/members/")
@@ -187,7 +187,7 @@ class MenuMembersEndpointTests(ApiTestBase):
 
     def test_read_only_user_can_access(self):
         owner = User.objects.create_user(
-            username="owner", password="pass", email="owner@test.com"
+            username="owner", email="owner@test.com"
         )
         menu = Menu.objects.create(user=owner, name="Shared")
         FriendRequest.objects.create(
@@ -250,7 +250,7 @@ class MenuAssignmentsApiTests(ApiTestBase):
 
     def test_assignments_capped_at_servings_count(self):
         bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=self.user,

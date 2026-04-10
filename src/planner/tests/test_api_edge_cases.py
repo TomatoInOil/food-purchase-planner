@@ -83,7 +83,7 @@ class IngredientApiEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -106,7 +106,7 @@ class IngredientApiEdgeCaseTests(TestCase):
 
     def test_delete_other_users_ingredient_forbidden(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         ing = Ingredient.objects.create(user=other, name="Secret", calories=0)
         response = self.client.delete(f"/api/ingredients/{ing.id}/")
@@ -115,7 +115,7 @@ class IngredientApiEdgeCaseTests(TestCase):
     def test_list_ingredients_returns_all_users(self):
         """Ingredients from all users should be visible in the list."""
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         Ingredient.objects.create(user=self.user, name="Mine")
         Ingredient.objects.create(user=other, name="Other")
@@ -162,7 +162,7 @@ class IngredientApiEdgeCaseTests(TestCase):
 
     def test_update_other_users_ingredient_forbidden(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         ing = Ingredient.objects.create(user=other, name="Secret", calories=0)
         response = self.client.patch(
@@ -179,14 +179,14 @@ class RecipeApiEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
         self.ing = Ingredient.objects.create(user=self.user, name="Tomato", calories=18)
 
     def test_recipe_list_includes_other_users_recipes(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         Recipe.objects.create(
             user=self.user, name="My Recipe", description="", instructions=""
@@ -201,7 +201,7 @@ class RecipeApiEdgeCaseTests(TestCase):
 
     def test_recipe_delete_other_users_recipe_forbidden(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         recipe = Recipe.objects.create(
             user=other, name="Private", description="", instructions=""
@@ -211,7 +211,7 @@ class RecipeApiEdgeCaseTests(TestCase):
 
     def test_recipe_update_other_users_recipe_forbidden(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         recipe = Recipe.objects.create(
             user=other, name="Private", description="", instructions=""
@@ -273,7 +273,7 @@ class MenuApiEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -364,7 +364,7 @@ class MenuSetActiveTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -378,7 +378,7 @@ class MenuSetActiveTests(TestCase):
 
     def test_set_active_other_users_menu_404(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         menu = Menu.objects.create(user=other, name="Other")
         response = self.client.post(f"/api/menus/{menu.id}/set-active/")
@@ -391,7 +391,7 @@ class ShoppingListEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -439,7 +439,7 @@ class ShoppingListEdgeCaseTests(TestCase):
 
     def test_shopping_list_other_users_menu_id_404(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         menu = Menu.objects.create(user=other, name="Other")
         response = self.client.post(
@@ -462,7 +462,7 @@ class FriendsApiEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
 
@@ -477,7 +477,7 @@ class FriendsApiEdgeCaseTests(TestCase):
     def test_send_request_already_pending(self):
         """Sending a second request when a pending one exists should still create."""
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         code_obj = UserFriendCode.objects.create(user=other)
         FriendRequest.objects.create(
@@ -495,7 +495,7 @@ class FriendsApiEdgeCaseTests(TestCase):
     def test_accept_request_wrong_user(self):
         """Only to_user can accept a friend request."""
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         fr = FriendRequest.objects.create(
             from_user=self.user,
@@ -507,7 +507,7 @@ class FriendsApiEdgeCaseTests(TestCase):
 
     def test_decline_request_wrong_user(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         fr = FriendRequest.objects.create(
             from_user=self.user,
@@ -519,7 +519,7 @@ class FriendsApiEdgeCaseTests(TestCase):
 
     def test_accept_already_accepted_request(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         fr = FriendRequest.objects.create(
             from_user=other,
@@ -540,11 +540,11 @@ class EditRecipesRequestEdgeCaseTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.client.force_login(self.user)
         self.other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
 
     def test_send_edit_request_not_friends_400(self):

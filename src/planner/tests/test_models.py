@@ -26,7 +26,7 @@ class IngredientModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_str_returns_name(self):
@@ -53,7 +53,7 @@ class IngredientModelTests(TestCase):
 
     def test_same_name_different_users_allowed(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         Ingredient.objects.create(user=self.user, name="Salt")
         ing2 = Ingredient.objects.create(user=other, name="Salt")
@@ -65,7 +65,7 @@ class RecipeCategoryModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_str_returns_name(self):
@@ -85,7 +85,7 @@ class RecipeCategoryModelTests(TestCase):
 
     def test_same_name_different_users_allowed(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         RecipeCategory.objects.create(user=self.user, name="Десерты")
         cat2 = RecipeCategory.objects.create(user=other, name="Десерты")
@@ -111,7 +111,7 @@ class RecipeModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.ing_a = Ingredient.objects.create(
             user=self.user, name="A", calories=100, protein=10, fat=5, carbs=20
@@ -204,7 +204,7 @@ class RecipeIngredientModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.ing = Ingredient.objects.create(user=self.user, name="Flour", calories=364)
         self.recipe = Recipe.objects.create(
@@ -249,7 +249,7 @@ class MenuModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_str_format(self):
@@ -273,7 +273,7 @@ class MenuSlotModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
         self.recipe = Recipe.objects.create(
@@ -336,7 +336,7 @@ class UserFriendCodeModelTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_save_generates_code_when_empty(self):
@@ -367,7 +367,7 @@ class UserFriendCodeModelTests(TestCase):
 
     def test_code_unique(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         UserFriendCode.objects.create(user=self.user, code="SAMECODE")
         with self.assertRaises(IntegrityError):
@@ -393,10 +393,10 @@ class FriendRequestModelTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
 
     def test_str_format(self):
@@ -442,7 +442,7 @@ class FriendRequestModelTests(TestCase):
 
     def test_can_edit_recipes_requested_by_set_null_on_delete(self):
         carol = User.objects.create_user(
-            username="carol", password="pass", email="carol@test.com"
+            username="carol", email="carol@test.com"
         )
         fr = FriendRequest.objects.create(
             from_user=self.alice,

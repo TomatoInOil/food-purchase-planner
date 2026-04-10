@@ -35,7 +35,7 @@ class GetOrCreateFirstMenuTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_creates_menu_when_none_exists(self):
@@ -62,7 +62,7 @@ class GetMenuSlotsTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
         self.recipe = Recipe.objects.create(
@@ -99,7 +99,7 @@ class GetMenuForUserTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_creates_menu_and_returns_slots(self):
@@ -113,7 +113,7 @@ class CalculateShoppingListTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
         self.ing_tomato = Ingredient.objects.create(
@@ -229,7 +229,7 @@ class CalculateShoppingListForUserTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
 
     def test_creates_menu_and_returns_empty_list(self):
@@ -246,10 +246,10 @@ class GetFriendUserOr404Tests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
 
     def test_returns_friend_when_from_user(self):
@@ -293,16 +293,16 @@ class GetEditableOwnerIdsTests(TestCase):
 
     def setUp(self):
         self.editor = User.objects.create_user(
-            username="editor", password="pass", email="editor@test.com"
+            username="editor", email="editor@test.com"
         )
         self.owner_a = User.objects.create_user(
-            username="owner_a", password="pass", email="a@test.com"
+            username="owner_a", email="a@test.com"
         )
         self.owner_b = User.objects.create_user(
-            username="owner_b", password="pass", email="b@test.com"
+            username="owner_b", email="b@test.com"
         )
         self.stranger = User.objects.create_user(
-            username="stranger", password="pass", email="stranger@test.com"
+            username="stranger", email="stranger@test.com"
         )
 
     def test_returns_empty_set_when_no_friends(self):
@@ -361,10 +361,10 @@ class CanFriendEditRecipesTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
 
     def test_true_when_accepted_and_edit_accepted(self):
@@ -421,10 +421,10 @@ class GetFriendRequestBetweenTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
 
     def test_returns_accepted_request(self):

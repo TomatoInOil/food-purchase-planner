@@ -33,7 +33,7 @@ class IngredientSerializerTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.request = self.factory.get("/")
         self.request.user = self.user
@@ -78,7 +78,7 @@ class IngredientSerializerTests(TestCase):
 
     def test_is_owner_false_for_other_user(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         ing = Ingredient.objects.create(user=other, name="Salt")
         serializer = IngredientSerializer(ing, context=self._context())
@@ -112,7 +112,7 @@ class RecipeSerializerTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.request = self.factory.get("/")
         self.request.user = self.user
@@ -161,7 +161,7 @@ class RecipeSerializerTests(TestCase):
 
     def test_is_owner_false_for_other(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         serializer = RecipeSerializer(self.recipe, context=self._context(user=other))
         self.assertFalse(serializer.data["is_owner"])
@@ -172,7 +172,7 @@ class RecipeSerializerTests(TestCase):
 
     def test_can_edit_true_for_friend_editor_via_context(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         ctx = self._context(user=other, editable_owner_ids={self.user.id})
         serializer = RecipeSerializer(self.recipe, context=ctx)
@@ -180,7 +180,7 @@ class RecipeSerializerTests(TestCase):
 
     def test_can_edit_false_for_non_friend(self):
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         ctx = self._context(user=other, editable_owner_ids=set())
         serializer = RecipeSerializer(self.recipe, context=ctx)
@@ -189,7 +189,7 @@ class RecipeSerializerTests(TestCase):
     def test_can_edit_fallback_to_db_check_without_context(self):
         """When editable_owner_ids is not in context, falls back to DB check."""
         other = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=other,
@@ -240,7 +240,7 @@ class RecipeCreateUpdateSerializerTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.request = self.factory.post("/")
         self.request.user = self.user
@@ -325,7 +325,7 @@ class MenuItemSerializerTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.request = self.factory.get("/")
         self.request.user = self.user
@@ -353,7 +353,7 @@ class MenuSlotsSerializerTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
 
@@ -444,7 +444,7 @@ class RecipeCategorySerializerTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.request = self.factory.get("/")
         self.request.user = self.user
