@@ -23,7 +23,7 @@ class ApiTestBase(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="testuser", password="testpass123", email="test@example.com"
+            username="testuser", email="test@example.com"
         )
         self.client.force_login(self.user)
 
@@ -100,7 +100,7 @@ class IngredientApiTests(ApiTestBase):
 
     def test_ingredient_delete_system_ingredient_400(self):
         system_user = User.objects.create_user(
-            username="system", password="x", email="system@local"
+            username="system", email="system@local"
         )
         ing = Ingredient.objects.create(user=system_user, name="SystemIng", calories=0)
         self.client.force_login(system_user)
@@ -110,7 +110,7 @@ class IngredientApiTests(ApiTestBase):
 
     def test_ingredient_update_system_ingredient_400(self):
         system_user = User.objects.create_user(
-            username="system", password="x", email="system@local"
+            username="system", email="system@local"
         )
         ing = Ingredient.objects.create(user=system_user, name="SystemIng", calories=0)
         self.client.force_login(system_user)
@@ -257,7 +257,7 @@ class RecipeFriendEditorTests(ApiTestBase):
     def setUp(self):
         super().setUp()
         self.owner = User.objects.create_user(
-            username="owner", password="pass", email="owner@example.com"
+            username="owner", email="owner@example.com"
         )
         self.ing = Ingredient.objects.create(
             user=self.owner, name="Tomato", calories=18, protein=1, fat=0, carbs=4
@@ -395,7 +395,7 @@ class RecipeListQueryCountTests(TestCase):
 
     def setUp(self):
         self.viewer = User.objects.create_user(
-            username="viewer", password="pass", email="viewer@test.com"
+            username="viewer", email="viewer@test.com"
         )
         self.client = Client()
         self.client.force_login(self.viewer)
@@ -406,7 +406,7 @@ class RecipeListQueryCountTests(TestCase):
             RecipeListQueryCountTests._user_seq += 1
             seq = RecipeListQueryCountTests._user_seq
             other = User.objects.create_user(
-                username=f"other_{seq}", password="pass", email=f"o{seq}@test.com"
+                username=f"other_{seq}", email=f"o{seq}@test.com"
             )
             ing = Ingredient.objects.create(
                 user=other,
@@ -607,7 +607,7 @@ class MultiMenuApiTests(ApiTestBase):
 
     def test_menu_detail_404_for_other_user(self):
         other = User.objects.create_user(
-            username="other", password="pass", email="other@example.com"
+            username="other", email="other@example.com"
         )
         menu = Menu.objects.create(user=other, name="Private")
         response = self.client.get(f"/api/menus/{menu.id}/")
@@ -693,7 +693,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_send_request_creates_pending_request_by_code(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         code_obj = UserFriendCode.objects.create(user=other)
 
@@ -729,7 +729,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_send_request_already_friends_400(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         code_obj = UserFriendCode.objects.create(user=other)
         FriendRequest.objects.create(
@@ -748,7 +748,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_friend_requests_list_shows_incoming_pending_only(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         FriendRequest.objects.create(
             from_user=other,
@@ -775,7 +775,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_accept_request_marks_accepted_and_cancels_reverse_pending(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         incoming = FriendRequest.objects.create(
             from_user=other,
@@ -800,7 +800,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_decline_request_marks_declined(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         incoming = FriendRequest.objects.create(
             from_user=other,
@@ -818,7 +818,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_friends_list_returns_accepted_friends(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         accepted = FriendRequest.objects.create(
             from_user=self.user,
@@ -842,7 +842,7 @@ class FriendsApiTests(ApiTestBase):
 
     def test_remove_friend_changes_status_to_removed_and_errors_if_not_friend(self):
         other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         accepted = FriendRequest.objects.create(
             from_user=self.user,
@@ -867,7 +867,7 @@ class EditRecipesRequestFlowTests(ApiTestBase):
     def setUp(self):
         super().setUp()
         self.other = User.objects.create_user(
-            username="friend", password="pass", email="friend@example.com"
+            username="friend", email="friend@example.com"
         )
         self.fr = FriendRequest.objects.create(
             from_user=self.user,
@@ -1048,7 +1048,7 @@ class RecipeCategoryApiTests(ApiTestBase):
 
     def test_category_list_includes_system_categories(self):
         system_user = User.objects.create_user(
-            username="system", password="x", is_active=False
+            username="system", is_active=False
         )
         RecipeCategory.objects.create(user=system_user, name="Завтрак")
         RecipeCategory.objects.create(user=self.user, name="Мои блюда")

@@ -33,10 +33,10 @@ class MenuShareModelTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         self.menu = Menu.objects.create(user=self.alice, name="Alice Menu")
         FriendRequest.objects.create(
@@ -59,7 +59,7 @@ class MenuShareModelTests(TestCase):
 
     def test_share_menu_not_friend_raises(self):
         stranger = User.objects.create_user(
-            username="stranger", password="pass", email="stranger@test.com"
+            username="stranger", email="stranger@test.com"
         )
         with self.assertRaises(ValidationError):
             share_menu(self.menu, stranger, "read")
@@ -74,10 +74,10 @@ class UserActiveMenuTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         self.menu_a = Menu.objects.create(user=self.alice, name="Menu A")
         self.menu_b = Menu.objects.create(user=self.alice, name="Menu B")
@@ -126,7 +126,7 @@ class ShoppingListServingsTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.menu = Menu.objects.create(user=self.user, name="Test")
         self.ing = Ingredient.objects.create(user=self.user, name="Tomato", calories=18)
@@ -169,10 +169,10 @@ class MenuShareAPITests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=self.alice,
@@ -210,7 +210,7 @@ class MenuShareAPITests(TestCase):
 
     def test_non_friend_share_rejected(self):
         stranger = User.objects.create_user(
-            username="stranger", password="pass", email="stranger@test.com"
+            username="stranger", email="stranger@test.com"
         )
         resp = self.client_alice.post(
             f"/api/menus/{self.menu.id}/shares/",
@@ -236,10 +236,10 @@ class MenuDetailAccessTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=self.alice,
@@ -290,10 +290,10 @@ class RevokeAllSharesBetweenTests(TestCase):
 
     def setUp(self):
         self.alice = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.bob = User.objects.create_user(
-            username="bob", password="pass", email="bob@test.com"
+            username="bob", email="bob@test.com"
         )
         FriendRequest.objects.create(
             from_user=self.alice,

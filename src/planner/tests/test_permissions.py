@@ -20,10 +20,10 @@ class IsOwnerOrReadOnlyTests(TestCase):
         self.factory = RequestFactory()
         self.permission = IsOwnerOrReadOnly()
         self.owner = User.objects.create_user(
-            username="owner", password="pass", email="owner@test.com"
+            username="owner", email="owner@test.com"
         )
         self.other = User.objects.create_user(
-            username="other", password="pass", email="other@test.com"
+            username="other", email="other@test.com"
         )
         self.ingredient = Ingredient.objects.create(
             user=self.owner, name="Salt", calories=0
@@ -67,13 +67,13 @@ class IsOwnerOrFriendEditorOrReadOnlyTests(TestCase):
         self.factory = RequestFactory()
         self.permission = IsOwnerOrFriendEditorOrReadOnly()
         self.owner = User.objects.create_user(
-            username="owner", password="pass", email="owner@test.com"
+            username="owner", email="owner@test.com"
         )
         self.friend = User.objects.create_user(
-            username="friend", password="pass", email="friend@test.com"
+            username="friend", email="friend@test.com"
         )
         self.stranger = User.objects.create_user(
-            username="stranger", password="pass", email="stranger@test.com"
+            username="stranger", email="stranger@test.com"
         )
         self.recipe = Recipe.objects.create(
             user=self.owner, name="Soup", description="", instructions=""
@@ -145,14 +145,14 @@ class IsSystemIngredientTests(TestCase):
 
     def test_system_user_ingredient(self):
         system_user = User.objects.create_user(
-            username="system", password="pass", email="system@test.com"
+            username="system", email="system@test.com"
         )
         ing = Ingredient.objects.create(user=system_user, name="Salt")
         self.assertTrue(is_system_ingredient(ing))
 
     def test_non_system_user_ingredient(self):
         user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         ing = Ingredient.objects.create(user=user, name="Salt")
         self.assertFalse(is_system_ingredient(ing))

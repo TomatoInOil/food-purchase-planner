@@ -13,7 +13,7 @@ class RecalculateNutritionSignalTests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="alice", password="pass", email="alice@test.com"
+            username="alice", email="alice@test.com"
         )
         self.ing_a = Ingredient.objects.create(
             user=self.user, name="A", calories=100, protein=10, fat=5, carbs=20

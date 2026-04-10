@@ -169,7 +169,7 @@ class IngredientImportPageContentApiTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user(
-            username="testuser", password="testpass123", email="test@example.com"
+            username="testuser", email="test@example.com"
         )
         self.client.force_login(self.user)
 
