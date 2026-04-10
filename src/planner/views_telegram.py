@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 LINK_TOKEN_EXPIRY_MINUTES = 15
-MAX_AUTH_AGE_SECONDS = 86400  # 1 day — Telegram Login Widget caches auth sessions
-MAX_CLOCK_SKEW_SECONDS = 10  # tolerance for clock differences between servers
 
 
 class TelegramLoginCallbackView(View):
@@ -57,13 +55,9 @@ class TelegramLoginCallbackView(View):
             return HttpResponseForbidden("Invalid signature")
 
         try:
-            auth_date = int(data["auth_date"])
             telegram_id = int(data["id"])
         except (KeyError, ValueError):
             return HttpResponseBadRequest("Invalid auth data fields")
-
-        if not _is_auth_date_fresh(auth_date):
-            return HttpResponseBadRequest("Auth data expired, please try again")
 
         user = _get_or_create_user(telegram_id, data)
 
@@ -144,16 +138,6 @@ def _verify_telegram_auth(data: dict, bot_token: str) -> bool:
         secret_key, data_check_string.encode(), hashlib.sha256
     ).hexdigest()
     return hmac.compare_digest(expected_hash, received_hash)
-
-
-def _is_auth_date_fresh(auth_date: int) -> bool:
-    """Return True if the auth_date timestamp is recent enough.
-
-    Allows a small clock-skew tolerance because auth_date comes from
-    Telegram's servers whose clock may be slightly ahead of ours.
-    """
-    age_seconds = timezone.now().timestamp() - auth_date
-    return -MAX_CLOCK_SKEW_SECONDS <= age_seconds <= MAX_AUTH_AGE_SECONDS
 
 
 def _get_or_create_user(telegram_id: int, data: dict):
