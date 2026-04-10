@@ -12,10 +12,7 @@ from django.test import Client, TestCase
 from config.exceptions import _flatten_detail
 from planner.models import UserTelegramProfile
 from planner.views_telegram import (
-    MAX_AUTH_AGE_SECONDS,
-    MAX_CLOCK_SKEW_SECONDS,
     _build_username,
-    _is_auth_date_fresh,
     _verify_telegram_auth,
 )
 
@@ -171,28 +168,6 @@ class VerifyTelegramAuthTests(TestCase):
         self.assertEqual(set(data.keys()), original_keys)
 
 
-class IsAuthDateFreshTests(TestCase):
-    """Unit tests for _is_auth_date_fresh."""
-
-    def test_fresh_timestamp_accepted(self):
-        self.assertTrue(_is_auth_date_fresh(int(time.time())))
-
-    def test_timestamp_4_minutes_ago_accepted(self):
-        self.assertTrue(_is_auth_date_fresh(int(time.time()) - 4 * 60))
-
-    def test_timestamp_10_minutes_ago_accepted(self):
-        self.assertTrue(_is_auth_date_fresh(int(time.time()) - 10 * 60))
-
-    def test_timestamp_2_days_ago_rejected(self):
-        self.assertFalse(_is_auth_date_fresh(int(time.time()) - 2 * 86400))
-
-    def test_slight_clock_skew_accepted(self):
-        self.assertTrue(_is_auth_date_fresh(int(time.time()) + MAX_CLOCK_SKEW_SECONDS - 1))
-
-    def test_future_timestamp_rejected(self):
-        self.assertFalse(_is_auth_date_fresh(int(time.time()) + 60))
-
-
 class BuildUsernameTests(TestCase):
     """Unit tests for _build_username."""
 
@@ -230,12 +205,6 @@ class TelegramLoginCallbackTests(TestCase):
         with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
             response = self._get_callback(data)
         self.assertEqual(response.status_code, 403)
-
-    def test_expired_auth_date_returns_400(self):
-        data = _make_auth_data(age_seconds=90000)  # 25 hours > 1 day TTL
-        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
-            response = self._get_callback(data)
-        self.assertEqual(response.status_code, 400)
 
     def test_existing_user_logs_in_and_redirects(self):
         user = User.objects.create_user(username="tguser")
@@ -364,14 +333,8 @@ class TelegramLoginCallbackEdgeCaseTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(User.objects.filter(username="user_777777").exists())
 
-    def test_auth_date_at_exact_ttl_boundary_rejected(self):
-        data = _make_auth_data(age_seconds=MAX_AUTH_AGE_SECONDS + 1)
-        with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
-            response = self.client.get("/telegram/callback/", data)
-        self.assertEqual(response.status_code, 400)
-
-    def test_auth_date_just_within_ttl_accepted(self):
-        data = _make_auth_data(telegram_id=888888, age_seconds=MAX_AUTH_AGE_SECONDS - 1)
+    def test_old_auth_date_still_accepted(self):
+        data = _make_auth_data(telegram_id=888888, age_seconds=90000)  # 25 hours
         with self.settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN):
             response = self.client.get("/telegram/callback/", data)
         self.assertEqual(response.status_code, 302)
