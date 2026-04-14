@@ -164,7 +164,10 @@ LOGOUT_REDIRECT_URL = "/login/"
 # Telegram bot settings
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
-SOCKS5_PROXY_URL = os.environ["SOCKS5_PROXY_URL"]
+SOCKS5_PROXY_URL = os.environ.get("SOCKS5_PROXY_URL", "")
+
+# MCP server settings
+MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
 
 # LogTide structured logging
 _logtide_api_url = os.environ.get("LOGTIDE_API_URL", "")

@@ -40,6 +40,9 @@ uv run python src/manage.py planner_populate_default_recipes
 # Telegram bot
 uv run python src/manage.py run_telegram_bot        # start polling bot
 uv run python src/manage.py send_telegram_broadcast  # send broadcast to all linked users
+
+# MCP server
+MCP_AUTH_TOKEN=test uv run python src/manage.py run_mcp_server
 ```
 
 Pre-commit hooks run ruff and mypy automatically on commit.

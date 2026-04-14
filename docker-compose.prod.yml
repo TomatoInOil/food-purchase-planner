@@ -68,6 +68,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  mcp:
+    image: ${GHCR_IMAGE}:${IMAGE_TAG}
+    command: ["python", "manage.py", "run_mcp_server"]
+    ports:
+      - "8001:8001"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-planner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-planner}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DEBUG: "0"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
+      GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}
+      LOGTIDE_API_URL: ${LOGTIDE_API_URL:-}
+      LOGTIDE_API_KEY: ${LOGTIDE_API_KEY:-}
+      SOCKS5_PROXY_URL: ${SOCKS5_PROXY_URL:-}
+      LOGTIDE_SERVICE_NAME: food-purchase-planner-mcp
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   npm:
     image: jc21/nginx-proxy-manager:latest
     restart: unless-stopped
