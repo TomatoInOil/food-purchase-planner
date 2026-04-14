@@ -54,6 +54,7 @@ jobs:
           [ -z "$SECRET_KEY" ] && MISSING="$MISSING SECRET_KEY"
           [ -z "$ALLOWED_HOSTS" ] && MISSING="$MISSING ALLOWED_HOSTS"
           [ -z "$SOCKS5_PROXY_URL" ] && MISSING="$MISSING SOCKS5_PROXY_URL"
+          [ -z "$MCP_AUTH_TOKEN" ] && MISSING="$MISSING MCP_AUTH_TOKEN"
           if [ -n "$MISSING" ]; then
             echo "::error::Required secrets are not set:$MISSING Add them in Settings → Secrets and variables → Actions."
             exit 1
@@ -67,6 +68,7 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
           SOCKS5_PROXY_URL: ${{ secrets.SOCKS5_PROXY_URL }}
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
 
       - name: Check deploy files exist
         run: |
@@ -105,12 +107,13 @@ jobs:
           LOGTIDE_API_URL: ${{ secrets.LOGTIDE_API_URL }}
           LOGTIDE_API_KEY: ${{ secrets.LOGTIDE_API_KEY }}
           SOCKS5_PROXY_URL: ${{ secrets.SOCKS5_PROXY_URL }}
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
         with:
           host: ${{ secrets.VDS_SSH_HOST }}
           username: ${{ secrets.VDS_SSH_USER }}
           key: ${{ secrets.VDS_SSH_KEY }}
           port: ${{ secrets.VDS_SSH_PORT }}
-          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,GLITCHTIP_DSN,GLITCHTIP_ENVIRONMENT,GLITCHTIP_RELEASE,TELEGRAM_BOT_TOKEN,TELEGRAM_BOT_USERNAME,LOGTIDE_API_URL,LOGTIDE_API_KEY,SOCKS5_PROXY_URL
+          envs: IMAGE_TAG,DEPLOY_WORKDIR,GITHUB_REPOSITORY,GHCR_USER,GHCR_TOKEN,POSTGRES_PASSWORD,SECRET_KEY,POSTGRES_USER,POSTGRES_DB,ALLOWED_HOSTS,CSRF_TRUSTED_ORIGINS,GLITCHTIP_DSN,GLITCHTIP_ENVIRONMENT,GLITCHTIP_RELEASE,TELEGRAM_BOT_TOKEN,TELEGRAM_BOT_USERNAME,LOGTIDE_API_URL,LOGTIDE_API_KEY,SOCKS5_PROXY_URL,MCP_AUTH_TOKEN
           script: |
             set -e
             WORKDIR="${DEPLOY_WORKDIR:-.}"
@@ -137,6 +140,7 @@ jobs:
               [ -n "$LOGTIDE_API_URL" ] && printf 'LOGTIDE_API_URL="%s"\n' "${LOGTIDE_API_URL//\"/\\\"}"
               [ -n "$LOGTIDE_API_KEY" ] && printf 'LOGTIDE_API_KEY="%s"\n' "${LOGTIDE_API_KEY//\"/\\\"}"
               printf 'SOCKS5_PROXY_URL="%s"\n' "${SOCKS5_PROXY_URL//\"/\\\"}"
+              [ -n "$MCP_AUTH_TOKEN" ] && printf 'MCP_AUTH_TOKEN="%s"\n' "${MCP_AUTH_TOKEN//\"/\\\"}"
             } > .env
             chmod 600 .env
             bash deploy.sh "${IMAGE_TAG}"
