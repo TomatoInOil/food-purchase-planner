@@ -12,15 +12,13 @@ import django  # noqa: E402
 
 django.setup()
 
+from asgiref.sync import sync_to_async  # noqa: E402
 from django.conf import settings  # noqa: E402
 from django.contrib.auth import get_user_model  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
-from starlette.applications import Starlette  # noqa: E402
-from starlette.middleware import Middleware  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 from starlette.responses import JSONResponse, Response  # noqa: E402
-from starlette.routing import Mount  # noqa: E402
 from starlette.types import ASGIApp  # noqa: E402
 
 from planner.models import MenuSlot  # noqa: E402
@@ -115,9 +113,8 @@ def _build_day_data(menu, day_of_week: int) -> dict:
     }
 
 
-@mcp.tool()
-def get_todays_menu(username: str) -> str:
-    """Get today's menu for a user from their active weekly menu plan."""
+def _sync_get_todays_menu(username: str) -> str:
+    """Synchronous implementation of get_todays_menu."""
     user = _get_user(username)
     if user is None:
         return json.dumps({"error": f"User '{username}' not found"}, ensure_ascii=False)
@@ -133,9 +130,8 @@ def get_todays_menu(username: str) -> str:
     return json.dumps(day_data, ensure_ascii=False)
 
 
-@mcp.tool()
-def get_week_menu(username: str) -> str:
-    """Get the full weekly menu for a user from their active menu plan."""
+def _sync_get_week_menu(username: str) -> str:
+    """Synchronous implementation of get_week_menu."""
     user = _get_user(username)
     if user is None:
         return json.dumps({"error": f"User '{username}' not found"}, ensure_ascii=False)
@@ -152,14 +148,13 @@ def get_week_menu(username: str) -> str:
     return json.dumps(result, ensure_ascii=False)
 
 
-@mcp.tool()
-def get_shopping_list(
+def _sync_get_shopping_list(
     username: str,
     start_date: str | None = None,
     end_date: str | None = None,
     people_count: int = 2,
 ) -> str:
-    """Get an aggregated shopping list for a user's active menu over a date range."""
+    """Synchronous implementation of get_shopping_list."""
     if people_count < 1 or people_count > 100:
         return json.dumps(
             {"error": "people_count must be between 1 and 100"}, ensure_ascii=False
@@ -198,6 +193,31 @@ def get_shopping_list(
     return json.dumps(result, ensure_ascii=False)
 
 
+@mcp.tool()
+async def get_todays_menu(username: str) -> str:
+    """Get today's menu for a user from their active weekly menu plan."""
+    return await sync_to_async(_sync_get_todays_menu)(username)
+
+
+@mcp.tool()
+async def get_week_menu(username: str) -> str:
+    """Get the full weekly menu for a user from their active menu plan."""
+    return await sync_to_async(_sync_get_week_menu)(username)
+
+
+@mcp.tool()
+async def get_shopping_list(
+    username: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    people_count: int = 2,
+) -> str:
+    """Get an aggregated shopping list for a user's active menu over a date range."""
+    return await sync_to_async(_sync_get_shopping_list)(
+        username, start_date, end_date, people_count
+    )
+
+
 class _BearerAuthMiddleware(BaseHTTPMiddleware):
     """Check Bearer token for MCP endpoints."""
 
@@ -219,12 +239,8 @@ def run_server(host: str = "0.0.0.0", port: int = 8001) -> None:
     """Start the MCP server with Streamable HTTP transport."""
     import uvicorn  # noqa: E402
 
-    mcp_app = mcp.streamable_http_app()
-
-    app = Starlette(
-        routes=[Mount("/mcp", app=mcp_app)],
-        middleware=[Middleware(_BearerAuthMiddleware)],
-    )
+    app = mcp.streamable_http_app()
+    app.add_middleware(_BearerAuthMiddleware)
 
     logger.info("Starting MCP server on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port)
