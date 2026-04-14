@@ -71,8 +71,8 @@ services:
   mcp:
     image: ${GHCR_IMAGE}:${IMAGE_TAG}
     command: ["python", "manage.py", "run_mcp_server"]
-    ports:
-      - "8001:8001"
+    expose:
+      - "8001"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-planner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -83,6 +83,9 @@ services:
       DEBUG: "0"
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      MCP_OAUTH_CLIENT_ID: ${MCP_OAUTH_CLIENT_ID:-}
+      MCP_OAUTH_CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-}
+      MCP_OAUTH_TOKEN_TTL: ${MCP_OAUTH_TOKEN_TTL:-3600}
       GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
       GLITCHTIP_ENVIRONMENT: ${GLITCHTIP_ENVIRONMENT:-}
       GLITCHTIP_RELEASE: ${GLITCHTIP_RELEASE:-}

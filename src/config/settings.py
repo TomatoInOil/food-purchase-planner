@@ -168,6 +168,9 @@ SOCKS5_PROXY_URL = os.environ.get("SOCKS5_PROXY_URL", "")
 
 # MCP server settings
 MCP_AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
+MCP_OAUTH_CLIENT_ID = os.environ.get("MCP_OAUTH_CLIENT_ID", "")
+MCP_OAUTH_CLIENT_SECRET = os.environ.get("MCP_OAUTH_CLIENT_SECRET", "")
+MCP_OAUTH_TOKEN_TTL = int(os.environ.get("MCP_OAUTH_TOKEN_TTL", "3600"))
 
 # LogTide structured logging
 _logtide_api_url = os.environ.get("LOGTIDE_API_URL", "")

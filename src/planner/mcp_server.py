@@ -4,7 +4,12 @@ import hmac
 import json
 import logging
 import os
+import secrets
+import time
 from datetime import date, timedelta
+
+import jwt
+import uvicorn
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
@@ -16,9 +21,11 @@ from asgiref.sync import sync_to_async  # noqa: E402
 from django.conf import settings  # noqa: E402
 from django.contrib.auth import get_user_model  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
+from starlette.applications import Starlette  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 from starlette.responses import JSONResponse, Response  # noqa: E402
+from starlette.routing import Route  # noqa: E402
 from starlette.types import ASGIApp  # noqa: E402
 
 from planner.models import MenuSlot  # noqa: E402
@@ -46,6 +53,17 @@ MEAL_TYPE_NAMES_RU = {
 }
 
 mcp = FastMCP("Food Purchase Planner")
+
+_MCP_JWT_ISSUER = "food-purchase-planner"
+_MCP_JWT_AUDIENCE = "food-purchase-planner-mcp"
+
+_OAUTH_PUBLIC_PATHS: frozenset[str] = frozenset(
+    {
+        "/.well-known/oauth-authorization-server",
+        "/.well-known/oauth-protected-resource",
+        "/token",
+    }
+)
 
 
 def _get_user(username: str):
@@ -218,29 +236,155 @@ async def get_shopping_list(
     )
 
 
-class _BearerAuthMiddleware(BaseHTTPMiddleware):
-    """Check Bearer token for MCP endpoints."""
+def _generate_access_token(client_id: str) -> tuple[str, int]:
+    """Generate a JWT access token for the given client."""
+    now = int(time.time())
+    ttl = settings.MCP_OAUTH_TOKEN_TTL
+    payload = {
+        "iss": _MCP_JWT_ISSUER,
+        "aud": _MCP_JWT_AUDIENCE,
+        "sub": client_id,
+        "iat": now,
+        "exp": now + ttl,
+        "jti": secrets.token_hex(16),
+    }
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+    return token, ttl
+
+
+def _validate_access_token(token: str) -> bool:
+    """Validate a JWT access token. Returns True if valid."""
+    try:
+        jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=["HS256"],
+            issuer=_MCP_JWT_ISSUER,
+            audience=_MCP_JWT_AUDIENCE,
+        )
+        return True
+    except jwt.InvalidTokenError:
+        return False
+    except Exception:
+        logger.exception("Unexpected error validating access token")
+        return False
+
+
+class _AuthMiddleware(BaseHTTPMiddleware):
+    """Check Bearer token or OAuth2 JWT for MCP endpoints."""
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        if request.url.path in _OAUTH_PUBLIC_PATHS:
+            response: Response = await call_next(request)
+            return response
+
         auth_header = request.headers.get("authorization", "")
-        expected_token = settings.MCP_AUTH_TOKEN
-        if not expected_token or not hmac.compare_digest(
-            auth_header, f"Bearer {expected_token}"
+        token = ""
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+        if (
+            token
+            and settings.MCP_AUTH_TOKEN
+            and hmac.compare_digest(token, settings.MCP_AUTH_TOKEN)
         ):
-            return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        response: Response = await call_next(request)
-        return response
+            response = await call_next(request)
+            return response
+
+        if token and _validate_access_token(token):
+            response = await call_next(request)
+            return response
+
+        logger.warning("Auth failed for %s %s", request.method, request.url.path)
+        return JSONResponse(
+            {"error": "Unauthorized"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+async def _handle_token_request(request: Request) -> Response:
+    """Handle OAuth2 client_credentials token request."""
+    form_data = await request.form()
+    grant_type = form_data.get("grant_type", "")
+    if grant_type != "client_credentials":
+        return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
+
+    client_id = form_data.get("client_id", "")
+    client_secret = form_data.get("client_secret", "")
+
+    expected_id = settings.MCP_OAUTH_CLIENT_ID
+    expected_secret = settings.MCP_OAUTH_CLIENT_SECRET
+
+    if (
+        not expected_id
+        or not expected_secret
+        or not hmac.compare_digest(str(client_id), expected_id)
+        or not hmac.compare_digest(str(client_secret), expected_secret)
+    ):
+        logger.warning("OAuth2 token request with invalid client credentials")
+        return JSONResponse({"error": "invalid_client"}, status_code=401)
+
+    token, ttl = _generate_access_token(str(client_id))
+    return JSONResponse(
+        {
+            "access_token": token,
+            "token_type": "Bearer",
+            "expires_in": ttl,
+        }
+    )
+
+
+async def _handle_authorization_server_metadata(request: Request) -> Response:
+    """Return OAuth2 authorization server metadata."""
+    issuer = f"{request.url.scheme}://{request.url.netloc}"
+    return JSONResponse(
+        {
+            "issuer": issuer,
+            "token_endpoint": f"{issuer}/token",
+            "grant_types_supported": ["client_credentials"],
+            "token_endpoint_auth_methods_supported": ["client_secret_post"],
+            "response_types_supported": [],
+        }
+    )
+
+
+async def _handle_protected_resource_metadata(request: Request) -> Response:
+    """Return OAuth2 protected resource metadata."""
+    resource = f"{request.url.scheme}://{request.url.netloc}"
+    return JSONResponse(
+        {
+            "resource": resource,
+            "authorization_servers": [resource],
+        }
+    )
+
+
+def _build_app() -> Starlette:
+    """Build the Starlette app with MCP routes, OAuth2 endpoints, and auth middleware."""
+    mcp_app = mcp.streamable_http_app()
+    routes = [
+        Route(
+            "/.well-known/oauth-authorization-server",
+            _handle_authorization_server_metadata,
+        ),
+        Route(
+            "/.well-known/oauth-protected-resource",
+            _handle_protected_resource_metadata,
+        ),
+        Route("/token", _handle_token_request, methods=["POST"]),
+        Route("/{path:path}", mcp_app),
+    ]
+    app = Starlette(routes=routes)
+    app.add_middleware(_AuthMiddleware)
+    return app
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8001) -> None:
     """Start the MCP server with Streamable HTTP transport."""
-    import uvicorn  # noqa: E402
-
-    app = mcp.streamable_http_app()
-    app.add_middleware(_BearerAuthMiddleware)
-
+    app = _build_app()
     logger.info("Starting MCP server on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port)
